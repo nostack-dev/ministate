@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fine-Grained DOM-Driven State Management</title>
+</head>
+<body>
+
+<h1 id="display" data-power="off" data-intensity="0">Power: Off, Intensity: 0</h1>
+<button id="togglePower">Toggle Power</button>
+<button id="increaseIntensity">Increase Intensity</button>
+
+<script>
+  const displayElement = document.getElementById("display");
+
+  // Define states directly tied to specific DOM attributes, inner HTML, etc.
+  const STATES = {
+    OFF: { 
+      element: displayElement,
+      attributes: { "data-power": "off", "data-intensity": "0" },
+      innerText: "Power: Off, Intensity: 0"
+    },
+    LOW: { 
+      element: displayElement,
+      attributes: { "data-power": "on", "data-intensity": "1" },
+      innerText: "Power: On, Intensity: 1"
+    },
+    MED: { 
+      element: displayElement,
+      attributes: { "data-power": "on", "data-intensity": "2" },
+      innerText: "Power: On, Intensity: 2"
+    },
+    HIGH: { 
+      element: displayElement,
+      attributes: { "data-power": "on", "data-intensity": "3" },
+      innerText: "Power: On, Intensity: 3"
+    }
+  };
+
+  let currentState = "OFF";  // Start with the OFF state
+
+  // Central EventBus to manage state transitions
+  function EventBus() {
+    switch (currentState) {
+      case "OFF":
+        console.log("Switching from OFF to LOW");
+        currentState = "LOW";
+        break;
+      case "LOW":
+        console.log("Switching from LOW to MED");
+        currentState = "MED";
+        break;
+      case "MED":
+        console.log("Switching from MED to HIGH");
+        currentState = "HIGH";
+        break;
+      case "HIGH":
+        console.log("Switching from HIGH to OFF");
+        currentState = "OFF";
+        break;
+      default:
+        console.error("Unknown state");
+    }
+    applyState(currentState);
+  }
+
+  // Function to apply state to various DOM properties
+  function applyState(stateKey) {
+    const state = STATES[stateKey];
+    for (const [attr, value] of Object.entries(state.attributes)) {
+      state.element.setAttribute(attr, value);  // Update each attribute
+    }
+    state.element.innerText = state.innerText;  // Update inner text
+  }
+
+  // MutationObserver to update `currentState` based on DOM attributes
+  const observer = new MutationObserver(() => {
+    const power = displayElement.getAttribute("data-power");
+    const intensity = displayElement.getAttribute("data-intensity");
+
+    // Match DOM attributes to correct state
+    for (const [key, state] of Object.entries(STATES)) {
+      if (state.attributes["data-power"] === power && state.attributes["data-intensity"] === intensity) {
+        currentState = key;
+        console.log(`State synchronized to: ${currentState}`);
+        break;
+      }
+    }
+  });
+
+  // Observe changes to `data-power` and `data-intensity`
+  observer.observe(displayElement, { attributes: true });
+
+  // Button event listeners to trigger the EventBus
+  document.getElementById("togglePower").addEventListener("click", EventBus);
+  document.getElementById("increaseIntensity").addEventListener("click", EventBus);
+</script>
+
+</body>
+</html>
