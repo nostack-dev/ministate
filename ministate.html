@@ -2,100 +2,156 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fine-Grained DOM-Driven State Management</title>
+  <title>MiniBus with Self-Contained State Management</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    const MiniBus = (() => {
+      let state = {};
+      const wiring = {};
+      const watchers = {};
+      const permissions = {};
+
+      return {
+        init() {
+          document.querySelectorAll('[id]').forEach(element => {
+            [...element.attributes]
+              .filter(attr => attr.name.startsWith('data-'))
+              .forEach(attr => {
+                const stateKey = `${element.id}.${attr.name}`;
+                state[stateKey] = attr.value;
+              });
+          });
+          console.log('Initial State:', JSON.stringify(state, null, 2));
+        },
+
+        wire(elementId, dataAttribute, domProperty) {
+          wiring[`${elementId}.${dataAttribute}`] = domProperty;
+        },
+
+        watch(stateKey, callback) {
+          if (!watchers[stateKey]) watchers[stateKey] = [];
+          watchers[stateKey].push(callback);
+        },
+
+        grantPermission(ownerId, stateKey) {
+          const [targetElementId] = stateKey.split('.');
+          const ownerElement = document.getElementById(ownerId);
+          const targetElement = document.getElementById(targetElementId);
+
+          if (targetElement && (ownerElement === targetElement || this._isChildOf(targetElement, ownerElement))) {
+            if (!permissions[stateKey]) permissions[stateKey] = [];
+            permissions[stateKey].push(ownerId);
+            console.log(`Permission granted: ${ownerId} can modify ${stateKey}`);
+          } else {
+            console.error(`Permission denied: ${ownerId} cannot grant permission for ${stateKey}`);
+          }
+        },
+
+        _isChildOf(child, parent) {
+          let node = child;
+          while (node) {
+            if (node === parent) return true;
+            node = node.parentNode;
+          }
+          return false;
+        },
+
+        requestStateChange(ownerId, stateKey, newValue) {
+          console.log(`Requesting state change: ${ownerId} -> ${stateKey}: ${newValue}`);
+          const [elementId, attribute] = stateKey.split('.');
+
+          if (ownerId === elementId || (permissions[stateKey] && permissions[stateKey].includes(ownerId))) {
+            if (state[stateKey] !== newValue) {
+              state[stateKey] = newValue;
+              this._applyStateChange(elementId, attribute, newValue);
+              if (watchers[stateKey]) {
+                watchers[stateKey].forEach(callback => callback(newValue));
+              }
+              console.log("Updated State:", JSON.stringify(state, null, 2));
+            }
+          } else {
+            console.error(`Permission denied: ${ownerId} cannot modify ${stateKey}`);
+          }
+        },
+
+        _applyStateChange(elementId, dataAttribute, newValue) {
+          const element = document.getElementById(elementId);
+          if (!element) return;
+
+          const domProperty = wiring[`${elementId}.${dataAttribute}`];
+          if (domProperty) {
+            if (domProperty === "classList.hidden") {
+              newValue === "hidden" ? element.classList.add("hidden") : element.classList.remove("hidden");
+            } else {
+              element[domProperty] = typeof element[domProperty] === "boolean" ? newValue === "true" : newValue;
+            }
+          } else {
+            element.setAttribute(dataAttribute, newValue);
+          }
+        },
+
+        registerEvent(componentId, eventType, stateKeyToChange) {
+          const element = document.getElementById(componentId);
+          element.addEventListener(eventType, () => {
+            const currentValue = state[stateKeyToChange] === "true";
+            this.requestStateChange(componentId, stateKeyToChange, (!currentValue).toString());
+          });
+        }
+      };
+    })();
+
+    const STATES = {
+      SIDEBAR_HIDDEN: {
+        "sidebarComponent.data-class": "hidden",
+        "toggleButton.data-click": "false",
+        "toggleButton.data-text": "Show Sidebar"
+      },
+      SIDEBAR_VISIBLE: {
+        "sidebarComponent.data-class": "",
+        "toggleButton.data-click": "true",
+        "toggleButton.data-text": "Hide Sidebar"
+      }
+    };
+
+    let currentState = "SIDEBAR_HIDDEN";
+
+    document.addEventListener('DOMContentLoaded', () => {
+      MiniBus.init();
+    });
+  </script>
 </head>
 <body>
 
-<h1 id="display" data-power="off" data-intensity="0">Power: Off, Intensity: 0</h1>
-<button id="togglePower">Toggle Power</button>
-<button id="increaseIntensity">Increase Intensity</button>
+<!-- Sidebar Component -->
+<div id="sidebarComponent" class="w-64 p-4 mt-6 bg-base-200 hidden" data-class="hidden">
+  <p>Sidebar Content</p>
+  <script>
+    MiniBus.wire("sidebarComponent", "data-class", "classList.hidden");
+    MiniBus.grantPermission("sidebarComponent", "sidebarComponent.data-class");
 
-<script>
-  const displayElement = document.getElementById("display");
+    MiniBus.watch("buttonComponent.data-click", (value) => {
+      // Sidebar component requests its own state change based on the button click
+      MiniBus.requestStateChange("sidebarComponent", "sidebarComponent.data-class", value === "true" ? "" : "hidden");
+    });
+  </script>
+</div>
 
-  // Define states directly tied to specific DOM attributes, inner HTML, etc.
-  const STATES = {
-    OFF: { 
-      element: displayElement,
-      attributes: { "data-power": "off", "data-intensity": "0" },
-      innerText: "Power: Off, Intensity: 0"
-    },
-    LOW: { 
-      element: displayElement,
-      attributes: { "data-power": "on", "data-intensity": "1" },
-      innerText: "Power: On, Intensity: 1"
-    },
-    MED: { 
-      element: displayElement,
-      attributes: { "data-power": "on", "data-intensity": "2" },
-      innerText: "Power: On, Intensity: 2"
-    },
-    HIGH: { 
-      element: displayElement,
-      attributes: { "data-power": "on", "data-intensity": "3" },
-      innerText: "Power: On, Intensity: 3"
-    }
-  };
+<!-- Button Component -->
+<div id="buttonComponent" data-click="false">
+  <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
+  <script>
+    MiniBus.wire("toggleButton", "data-text", "textContent");
+    MiniBus.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
 
-  let currentState = "OFF";  // Start with the OFF state
+    MiniBus.grantPermission("buttonComponent", "toggleButton.data-text");
 
-  // Central EventBus to manage state transitions
-  function EventBus() {
-    switch (currentState) {
-      case "OFF":
-        console.log("Switching from OFF to LOW");
-        currentState = "LOW";
-        break;
-      case "LOW":
-        console.log("Switching from LOW to MED");
-        currentState = "MED";
-        break;
-      case "MED":
-        console.log("Switching from MED to HIGH");
-        currentState = "HIGH";
-        break;
-      case "HIGH":
-        console.log("Switching from HIGH to OFF");
-        currentState = "OFF";
-        break;
-      default:
-        console.error("Unknown state");
-    }
-    applyState(currentState);
-  }
-
-  // Function to apply state to various DOM properties
-  function applyState(stateKey) {
-    const state = STATES[stateKey];
-    for (const [attr, value] of Object.entries(state.attributes)) {
-      state.element.setAttribute(attr, value);  // Update each attribute
-    }
-    state.element.innerText = state.innerText;  // Update inner text
-  }
-
-  // MutationObserver to update `currentState` based on DOM attributes
-  const observer = new MutationObserver(() => {
-    const power = displayElement.getAttribute("data-power");
-    const intensity = displayElement.getAttribute("data-intensity");
-
-    // Match DOM attributes to correct state
-    for (const [key, state] of Object.entries(STATES)) {
-      if (state.attributes["data-power"] === power && state.attributes["data-intensity"] === intensity) {
-        currentState = key;
-        console.log(`State synchronized to: ${currentState}`);
-        break;
-      }
-    }
-  });
-
-  // Observe changes to `data-power` and `data-intensity`
-  observer.observe(displayElement, { attributes: true });
-
-  // Button event listeners to trigger the EventBus
-  document.getElementById("togglePower").addEventListener("click", EventBus);
-  document.getElementById("increaseIntensity").addEventListener("click", EventBus);
-</script>
+    MiniBus.watch("buttonComponent.data-click", (value) => {
+      // Button component requests a change in its text based on its click state
+      MiniBus.requestStateChange("toggleButton", "toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+    });
+  </script>
+</div>
 
 </body>
 </html>
