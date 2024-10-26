@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MiniBus with Self-Contained State Management</title>
+  <title>MiniBus with Conditional State Management</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -58,7 +58,6 @@
         },
 
         requestStateChange(ownerId, stateKey, newValue) {
-          console.log(`Requesting state change: ${ownerId} -> ${stateKey}: ${newValue}`);
           const [elementId, attribute] = stateKey.split('.');
 
           if (ownerId === elementId || (permissions[stateKey] && permissions[stateKey].includes(ownerId))) {
@@ -68,7 +67,7 @@
               if (watchers[stateKey]) {
                 watchers[stateKey].forEach(callback => callback(newValue));
               }
-              console.log("Updated State:", JSON.stringify(state, null, 2));
+              console.log(`State Changed: ${stateKey} = ${newValue}`);
             }
           } else {
             console.error(`Permission denied: ${ownerId} cannot modify ${stateKey}`);
@@ -116,6 +115,25 @@
 
     let currentState = "SIDEBAR_HIDDEN";
 
+    function applyState(stateKey) {
+      const nextState = STATES[stateKey];
+      let allConditionsMet = true;
+
+      for (const key in nextState) {
+        if (state[key] !== nextState[key]) {
+          allConditionsMet = false;
+          break;
+        }
+      }
+
+      if (allConditionsMet) {
+        currentState = stateKey;
+        for (const [key, value] of Object.entries(nextState)) {
+          MiniBus.requestStateChange(key.split('.')[0], key, value);
+        }
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       MiniBus.init();
     });
@@ -131,8 +149,7 @@
     MiniBus.grantPermission("sidebarComponent", "sidebarComponent.data-class");
 
     MiniBus.watch("buttonComponent.data-click", (value) => {
-      // Sidebar component requests its own state change based on the button click
-      MiniBus.requestStateChange("sidebarComponent", "sidebarComponent.data-class", value === "true" ? "" : "hidden");
+      MiniBus.requestStateChange("sidebarComponent", "sidebarComponent.data-class", value);
     });
   </script>
 </div>
@@ -147,8 +164,7 @@
     MiniBus.grantPermission("buttonComponent", "toggleButton.data-text");
 
     MiniBus.watch("buttonComponent.data-click", (value) => {
-      // Button component requests a change in its text based on its click state
-      MiniBus.requestStateChange("toggleButton", "toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+      MiniBus.requestStateChange("toggleButton", "toggleButton.data-text", value);
     });
   </script>
 </div>
