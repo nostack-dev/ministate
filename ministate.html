@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MiniBus with Self-Contained State Management</title>
+  <title>MiniBus with Awaitable Wiring</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   
@@ -161,17 +161,23 @@
          * @param {string} elementId - The ID of the DOM element.
          * @param {string} dataAttribute - The data attribute to bind (e.g., "data-class").
          * @param {string} domProperty - The DOM property to bind to (e.g., "classList.hidden").
+         * @returns {Promise} - Resolves when wiring is complete.
          */
         wire(elementId, dataAttribute, domProperty) {
-          wiring[`${elementId}.${dataAttribute}`] = domProperty;
-          // Initialize DOM based on current state
-          const stateKey = `${elementId}.${dataAttribute}`;
-          const currentValue = MiniState.getState(stateKey);
-          this._applyStateChange(elementId, dataAttribute, currentValue);
+          return new Promise((resolve, reject) => {
+            wiring[`${elementId}.${dataAttribute}`] = domProperty;
+            // Initialize DOM based on current state
+            const stateKey = `${elementId}.${dataAttribute}`;
+            const currentValue = MiniState.getState(stateKey);
+            this._applyStateChange(elementId, dataAttribute, currentValue);
 
-          // Watch for state changes to update the DOM
-          MiniState.watch(stateKey, (newValue) => {
-            this._applyStateChange(elementId, dataAttribute, newValue);
+            // Watch for state changes to update the DOM
+            MiniState.watch(stateKey, (newValue) => {
+              this._applyStateChange(elementId, dataAttribute, newValue);
+            });
+
+            console.log(`Wired ${elementId}.${dataAttribute} to ${domProperty}`);
+            resolve();
           });
         },
 
@@ -288,14 +294,16 @@
   <div id="sidebarComponent" class="w-64 p-4 mt-6 bg-base-200 hidden" data-class="hidden">
     <p>Sidebar Content</p>
     <script>
-      // Sidebar Component Script
-      MiniBus.wire("sidebarComponent", "data-class", "classList.hidden");
-      MiniBus.grantPermission("sidebarComponent", "sidebarComponent.data-class");
+      (async () => {
+        // Sidebar Component Script
+        await MiniBus.wire("sidebarComponent", "data-class", "classList.hidden");
+        MiniBus.grantPermission("sidebarComponent", "sidebarComponent.data-class");
 
-      MiniState.watch("buttonComponent.data-click", (value) => {
-        // Sidebar component requests its own state change based on the button click
-        MiniBus.requestStateChange("sidebarComponent", "sidebarComponent.data-class", value === "true" ? "" : "hidden");
-      });
+        MiniState.watch("buttonComponent.data-click", (value) => {
+          // Sidebar component requests its own state change based on the button click
+          MiniBus.requestStateChange("sidebarComponent", "sidebarComponent.data-class", value === "true" ? "" : "hidden");
+        });
+      })();
     </script>
   </div>
   
@@ -305,23 +313,29 @@
     <div id="buttonComponent" data-click="false">
       <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
       <script>
-        // Button Component Script
-        MiniBus.wire("toggleButton", "data-text", "textContent");
-        MiniBus.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
+        (async () => {
+          // Button Component Script
+          await MiniBus.wire("toggleButton", "data-text", "textContent");
+          MiniBus.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
 
-        MiniBus.grantPermission("buttonComponent", "toggleButton.data-text");
+          MiniBus.grantPermission("buttonComponent", "toggleButton.data-text");
 
-        MiniState.watch("buttonComponent.data-click", (value) => {
-          // Button component requests a change in its text based on its click state
-          MiniBus.requestStateChange("buttonComponent", "toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
-        });
+          MiniState.watch("buttonComponent.data-click", (value) => {
+            // Button component requests a change in its text based on its click state
+            MiniBus.requestStateChange("buttonComponent", "toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+          });
+        })();
       </script>
     </div>
   </div>
   
   <!-- Initialization Script -->
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    (async () => {
+      // Wait for all components to finish wiring
+      // Note: In this setup, wiring is done in embedded scripts and executed before this script.
+      // Therefore, we can proceed to initialize after a slight delay to ensure wiring completion.
+
       // Define and add predefined states
       MiniState.addState("SIDEBAR_HIDDEN", {
         sidebarComponent: {
@@ -343,10 +357,13 @@
         }
       });
 
+      // Optionally, wait for all wiring to complete
+      // Here, we assume that wiring scripts have already been executed
+      // If wiring scripts perform asynchronous operations, adjust accordingly
+
       // Initialize MiniBus with the desired initial state
-      // **Moved Initialization Here to Ensure Wiring is Done First**
       MiniBus.init("SIDEBAR_HIDDEN");
-    });
+    })();
   </script>
 </body>
 </html>
