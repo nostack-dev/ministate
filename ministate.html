@@ -9,39 +9,23 @@
   <!-- MiniState -->
   <script>
     // ministate.js
-
     const MiniState = (() => {
       let state = {};
       const watchers = {};
       const predefinedStates = {};
 
       return {
-        /**
-         * Adds a new predefined state.
-         * @param {string} stateName - The name of the state.
-         * @param {object} stateDefinition - The state properties.
-         */
         addState(stateName, stateDefinition) {
-          if (predefinedStates[stateName]) {
-            console.warn(`State "${stateName}" already exists. It will be overwritten.`);
-          }
           predefinedStates[stateName] = stateDefinition;
-          console.log(`State "${stateName}" has been added.`);
         },
 
-        /**
-         * Initializes the state with a predefined state.
-         * @param {string} initialStateKey - The key of the initial state to load.
-         */
         init(initialStateKey = "SIDEBAR_HIDDEN") {
-          // Initialize with predefined state
           const initialState = predefinedStates[initialStateKey];
           if (!initialState) {
             console.error(`Initial state "${initialStateKey}" is not defined.`);
             return;
           }
 
-          // Set initial state based on predefinedStates
           Object.keys(initialState).forEach(elementId => {
             const attributes = initialState[elementId];
             Object.keys(attributes).forEach(attr => {
@@ -50,68 +34,31 @@
             });
           });
 
-          // Optionally, merge with DOM attributes that are not part of predefinedStates
-          document.querySelectorAll('[id]').forEach(element => {
-            [...element.attributes]
-              .filter(attr => attr.name.startsWith('data-'))
-              .forEach(attr => {
-                const stateKey = `${element.id}.${attr.name}`;
-                if (!(stateKey in state)) {
-                  state[stateKey] = attr.value;
-                }
-              });
-          });
-
           console.log('Initial State:', JSON.stringify(state, null, 2));
         },
 
-        /**
-         * Retrieves the value of a specific state key.
-         * @param {string} stateKey - The key of the state to retrieve.
-         * @returns {string} - The value of the state.
-         */
         getState(stateKey) {
           return state[stateKey];
         },
 
-        /**
-         * Sets the value of a specific state key and notifies watchers.
-         * @param {string} stateKey - The key of the state to set.
-         * @param {string} newValue - The new value to assign.
-         */
         setState(stateKey, newValue) {
           if (state[stateKey] !== newValue) {
             state[stateKey] = newValue;
             this._notify(stateKey, newValue);
-            console.log("Updated State:", JSON.stringify(state, null, 2));
           }
         },
 
-        /**
-         * Watches for changes on a specific state key.
-         * @param {string} stateKey - The key of the state to watch.
-         * @param {function} callback - The callback to execute on state change.
-         */
         watch(stateKey, callback) {
           if (!watchers[stateKey]) watchers[stateKey] = [];
           watchers[stateKey].push(callback);
         },
 
-        /**
-         * Notifies all watchers of a specific state key about a state change.
-         * @param {string} stateKey - The key of the state that changed.
-         * @param {string} newValue - The new value of the state.
-         */
         _notify(stateKey, newValue) {
           if (watchers[stateKey]) {
             watchers[stateKey].forEach(callback => callback(newValue));
           }
         },
 
-        /**
-         * Switches the entire state to a predefined state.
-         * @param {string} stateName - The name of the state to switch to.
-         */
         switchState(stateName) {
           const newState = predefinedStates[stateName];
           if (!newState) {
@@ -126,14 +73,6 @@
               this.setState(stateKey, attributes[attr]);
             });
           });
-        },
-
-        /**
-         * Retrieves all predefined states.
-         * @returns {object} - The predefined states.
-         */
-        get predefinedStates() {
-          return predefinedStates;
         }
       };
     })();
@@ -142,111 +81,41 @@
   <!-- MiniBus -->
   <script>
     // minibus.js
-
     const MiniBus = (() => {
       const wiring = {};
       const permissions = {};
 
       return {
-        /**
-         * Initializes MiniBus by initializing MiniState with the desired initial state.
-         * @param {string} initialStateKey - The key of the initial state to load.
-         */
         init(initialStateKey = "SIDEBAR_HIDDEN") {
           MiniState.init(initialStateKey);
         },
 
-        /**
-         * Wires a DOM element's data attribute to a DOM property.
-         * @param {string} elementId - The ID of the DOM element.
-         * @param {string} dataAttribute - The data attribute to bind (e.g., "data-class").
-         * @param {string} domProperty - The DOM property to bind to (e.g., "classList.hidden").
-         * @returns {Promise} - Resolves when wiring is complete.
-         */
         wire(elementId, dataAttribute, domProperty) {
-          return new Promise((resolve, reject) => {
-            wiring[`${elementId}.${dataAttribute}`] = domProperty;
-            // Initialize DOM based on current state
-            const stateKey = `${elementId}.${dataAttribute}`;
-            const currentValue = MiniState.getState(stateKey);
-            this._applyStateChange(elementId, dataAttribute, currentValue);
+          wiring[`${elementId}.${dataAttribute}`] = domProperty;
+          const stateKey = `${elementId}.${dataAttribute}`;
+          const currentValue = MiniState.getState(stateKey);
+          this._applyStateChange(elementId, dataAttribute, currentValue);
 
-            // Watch for state changes to update the DOM
-            MiniState.watch(stateKey, (newValue) => {
-              this._applyStateChange(elementId, dataAttribute, newValue);
-            });
-
-            console.log(`Wired ${elementId}.${dataAttribute} to ${domProperty}`);
-            resolve();
+          MiniState.watch(stateKey, (newValue) => {
+            this._applyStateChange(elementId, dataAttribute, newValue);
           });
         },
 
-        /**
-         * Watches a specific state key for changes.
-         * @param {string} stateKey - The key of the state to watch.
-         * @param {function} callback - The callback to execute on state change.
-         */
-        watch(stateKey, callback) {
-          MiniState.watch(stateKey, callback);
-        },
-
-        /**
-         * Grants permission to a component to modify a specific state key.
-         * @param {string} ownerId - The ID of the component granting permission.
-         * @param {string} stateKey - The state key the component is allowed to modify.
-         */
         grantPermission(ownerId, stateKey) {
-          const [targetElementId] = stateKey.split('.');
-          const ownerElement = document.getElementById(ownerId);
-          const targetElement = document.getElementById(targetElementId);
-
-          if (targetElement && (ownerElement === targetElement || this._isChildOf(targetElement, ownerElement))) {
-            if (!permissions[stateKey]) permissions[stateKey] = [];
+          if (!permissions[stateKey]) permissions[stateKey] = [];
+          if (!permissions[stateKey].includes(ownerId)) {
             permissions[stateKey].push(ownerId);
-            console.log(`Permission granted: ${ownerId} can modify ${stateKey}`);
-          } else {
-            console.error(`Permission denied: ${ownerId} cannot grant permission for ${stateKey}`);
           }
         },
 
-        /**
-         * Checks if a DOM element is a child of another DOM element.
-         * @param {HTMLElement} child - The child element.
-         * @param {HTMLElement} parent - The parent element.
-         * @returns {boolean} - True if `child` is a descendant of `parent`.
-         */
-        _isChildOf(child, parent) {
-          let node = child;
-          while (node) {
-            if (node === parent) return true;
-            node = node.parentNode;
-          }
-          return false;
-        },
-
-        /**
-         * Requests a state change if the component has the necessary permissions.
-         * @param {string} ownerId - The ID of the component requesting the change.
-         * @param {string} stateKey - The state key to change.
-         * @param {string} newValue - The new value for the state key.
-         */
         requestStateChange(ownerId, stateKey, newValue) {
-          console.log(`Requesting state change: ${ownerId} -> ${stateKey}: ${newValue}`);
-          const [elementId, attribute] = stateKey.split('.');
-
-          if (ownerId === elementId || (permissions[stateKey] && permissions[stateKey].includes(ownerId))) {
+          if (permissions[stateKey] && permissions[stateKey].includes(ownerId)) {
             MiniState.setState(stateKey, newValue);
           } else {
             console.error(`Permission denied: ${ownerId} cannot modify ${stateKey}`);
           }
         },
 
-        /**
-         * Applies a state change to a DOM element based on the state key and new value.
-         * @param {string} elementId - The ID of the DOM element.
-         * @param {string} dataAttribute - The data attribute associated with the state key.
-         * @param {string} newValue - The new value to apply.
-         */
         _applyStateChange(elementId, dataAttribute, newValue) {
           const element = document.getElementById(elementId);
           if (!element) return;
@@ -255,29 +124,15 @@
           if (domProperty) {
             if (domProperty === "classList.hidden") {
               newValue === "hidden" ? element.classList.add("hidden") : element.classList.remove("hidden");
-            } else if (domProperty.startsWith("dataset.")) {
-              const datasetKey = domProperty.split('.')[1];
-              element.dataset[datasetKey] = newValue;
             } else {
-              element[domProperty] = typeof element[domProperty] === "boolean" ? newValue === "true" : newValue;
+              element[domProperty] = newValue;
             }
-          } else {
-            element.setAttribute(dataAttribute, newValue);
           }
         },
 
-        /**
-         * Registers an event listener on a component to modify a specific state key upon the event.
-         * @param {string} componentId - The ID of the component.
-         * @param {string} eventType - The type of the event to listen for (e.g., "click").
-         * @param {string} stateKeyToChange - The state key to change when the event is triggered.
-         */
         registerEvent(componentId, eventType, stateKeyToChange) {
           const element = document.getElementById(componentId);
-          if (!element) {
-            console.error(`Element with id "${componentId}" not found.`);
-            return;
-          }
+          if (!element) return;
 
           element.addEventListener(eventType, () => {
             const currentValue = MiniState.getState(stateKeyToChange) === "true";
@@ -290,80 +145,64 @@
 </head>
 <body class="flex">
   
+  <!-- Initialization Script -->
+  <script>
+    // Define and add predefined states
+    MiniState.addState("SIDEBAR_HIDDEN", {
+      sidebarComponent: {
+        "data-class": "hidden"
+      },
+      toggleButton: {
+        "data-text": "Show Sidebar"
+      }
+    });
+
+    MiniState.addState("SIDEBAR_VISIBLE", {
+      sidebarComponent: {
+        "data-class": ""
+      },
+      toggleButton: {
+        "data-text": "Hide Sidebar"
+      }
+    });
+
+    // Initialize MiniBus with the desired initial state
+    MiniBus.init("SIDEBAR_HIDDEN");
+  </script>
+
   <!-- Sidebar Component -->
   <div id="sidebarComponent" class="w-64 p-4 mt-6 bg-base-200 hidden" data-class="hidden">
     <p>Sidebar Content</p>
     <script>
-      (async () => {
-        // Sidebar Component Script
-        await MiniBus.wire("sidebarComponent", "data-class", "classList.hidden");
-        MiniBus.grantPermission("sidebarComponent", "sidebarComponent.data-class");
+      // Sidebar Component Script
+      MiniBus.wire("sidebarComponent", "data-class", "classList.hidden");
+      MiniBus.grantPermission("buttonComponent", "sidebarComponent.data-class");
 
-        MiniState.watch("buttonComponent.data-click", (value) => {
-          // Sidebar component requests its own state change based on the button click
-          MiniBus.requestStateChange("sidebarComponent", "sidebarComponent.data-class", value === "true" ? "" : "hidden");
-        });
-      })();
+      MiniState.watch("buttonComponent.data-click", (value) => {
+        MiniBus.requestStateChange("buttonComponent", "sidebarComponent.data-class", value === "true" ? "" : "hidden");
+      });
     </script>
   </div>
   
-  <!-- Main Content -->
-  <div class="flex-1 p-4">
-    <!-- Button Component -->
-    <div id="buttonComponent" data-click="false">
-      <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
-      <script>
-        (async () => {
-          // Button Component Script
-          await MiniBus.wire("toggleButton", "data-text", "textContent");
-          MiniBus.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
+  <!-- Button Component -->
+  <div id="buttonComponent" data-click="false">
+    <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
+    <script>
+      // Button Component Script
+      MiniBus.wire("toggleButton", "data-text", "textContent");
+      MiniBus.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
 
-          MiniBus.grantPermission("buttonComponent", "toggleButton.data-text");
+      MiniBus.grantPermission("buttonComponent", "toggleButton.data-text");
+      MiniBus.grantPermission("buttonComponent", "buttonComponent.data-click");
 
-          MiniState.watch("buttonComponent.data-click", (value) => {
-            // Button component requests a change in its text based on its click state
-            MiniBus.requestStateChange("buttonComponent", "toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
-          });
-        })();
-      </script>
-    </div>
+      MiniState.watch("buttonComponent.data-click", (value) => {
+        MiniBus.requestStateChange("buttonComponent", "toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+      });
+    </script>
   </div>
   
-  <!-- Initialization Script -->
   <script>
-    (async () => {
-      // Wait for all components to finish wiring
-      // Note: In this setup, wiring is done in embedded scripts and executed before this script.
-      // Therefore, we can proceed to initialize after a slight delay to ensure wiring completion.
-
-      // Define and add predefined states
-      MiniState.addState("SIDEBAR_HIDDEN", {
-        sidebarComponent: {
-          "data-class": "hidden"
-        },
-        toggleButton: {
-          "data-click": "false",
-          "data-text": "Show Sidebar"
-        }
-      });
-
-      MiniState.addState("SIDEBAR_VISIBLE", {
-        sidebarComponent: {
-          "data-class": ""
-        },
-        toggleButton: {
-          "data-click": "true",
-          "data-text": "Hide Sidebar"
-        }
-      });
-
-      // Optionally, wait for all wiring to complete
-      // Here, we assume that wiring scripts have already been executed
-      // If wiring scripts perform asynchronous operations, adjust accordingly
-
-      // Initialize MiniBus with the desired initial state
-      MiniBus.init("SIDEBAR_HIDDEN");
-    })();
+    console.log("All components are wired and state is initialized.");
   </script>
 </body>
 </html>
