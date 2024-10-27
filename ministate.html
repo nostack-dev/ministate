@@ -170,9 +170,37 @@
     MiniBus.init("SIDEBAR_HIDDEN");
   </script>
 
-  <!-- Sidebar Component -->
-  <div id="sidebarComponent" class="w-64 p-4 mt-6 bg-base-200 hidden" data-class="hidden">
-    <p>Sidebar Content</p>
+
+  
+
+<div id="sidebarComponent" data-state="closed" class="bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-10">
+    <!-- Sidebar Header -->
+    <div class="h-16 flex items-center justify-between px-4">
+        <!-- Hamburger Icon (Always Visible) -->
+        <button class="toggleSidebarButton text-accent" aria-label="Toggle Sidebar">
+            ☰
+        </button>
+
+        <button onclick="" aria-label="New">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-accent">
+                <path d="M12 19c4.418 0 8-3.582 8-8s-3.582-8-8-8S4 6.582 4 11a7.93 7.93 0 0 0 1.582 4.635l-1.39 3.483a1 1 0 0 0 1.266 1.266l3.483-1.39A7.93 7.93 0 0 0 12 19zm0-10v4m0 0v-4m-2 2h4"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Sidebar Navigation -->
+    <nav class="flex-1 p-4">
+        <ul class="menu w-full">
+            <li>sidebar entry</li>
+        </ul>
+    </nav>
+
+    <!-- Sidebar Footer -->
+    <div class="p-4 h-5px flex items-center justify-center">
+        <p class="text-sm"></p>
+    </div>
+
+
     <script>
       // Sidebar Component Script
       MiniBus.wire("sidebarComponent", "data-class", "classList.hidden");
@@ -182,11 +210,12 @@
         MiniBus.requestStateChange("buttonComponent", "sidebarComponent.data-class", value === "true" ? "" : "hidden");
       });
     </script>
-  </div>
-  
+</div>
+
   <!-- Button Component -->
-  <div id="buttonComponent" data-click="false">
+  <div id="buttonComponent" data-click="false" class="flex justify-center items-center w-full h-full">
     <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
+
     <script>
       // Button Component Script
       MiniBus.wire("toggleButton", "data-text", "textContent");
@@ -200,9 +229,6 @@
       });
     </script>
   </div>
-  
-  <script>
-    console.log("All components are wired and state is initialized.");
-  </script>
+
 </body>
 </html>
