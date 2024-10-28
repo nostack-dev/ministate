@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MiniBus with FSM</title>
+  <title>MiniState with FSM</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- MiniBus with FSM -->
+  <!-- MiniState with FSM -->
   <script>
-    const MiniBus = (() => {
+    const MiniState = (() => {
       const state = {};
       const wiring = {};
       const watchers = {};
@@ -28,7 +28,7 @@
           transitions[fromState].push({ toState, condition });
         },
 
-        // Initialize MiniBus with the initial state
+        // Initialize MiniState with the initial state
         init(initialStateKey = "SIDEBAR_HIDDEN") {
           currentState = initialStateKey;
           this._applyState(predefinedStates[initialStateKey]);
@@ -115,24 +115,24 @@
     })();
 
     // Define initial states
-    MiniBus.addState("SIDEBAR_HIDDEN", {
+    MiniState.addState("SIDEBAR_HIDDEN", {
       "sidebarComponent.data-class": "hidden",
       "buttonComponent.toggleButton.data-text": "Show Sidebar",
       "buttonComponent.data-click": "false"
     });
 
-    MiniBus.addState("SIDEBAR_VISIBLE", {
+    MiniState.addState("SIDEBAR_VISIBLE", {
       "sidebarComponent.data-class": "",
       "buttonComponent.toggleButton.data-text": "Hide Sidebar",
       "buttonComponent.data-click": "true"
     });
 
     // Define transitions between states
-    MiniBus.addTransition("SIDEBAR_HIDDEN", "SIDEBAR_VISIBLE", () => true);
-    MiniBus.addTransition("SIDEBAR_VISIBLE", "SIDEBAR_HIDDEN", () => true);
+    MiniState.addTransition("SIDEBAR_HIDDEN", "SIDEBAR_VISIBLE", () => true);
+    MiniState.addTransition("SIDEBAR_VISIBLE", "SIDEBAR_HIDDEN", () => true);
 
     document.addEventListener('DOMContentLoaded', () => {
-      MiniBus.init("SIDEBAR_HIDDEN");
+      MiniState.init("SIDEBAR_HIDDEN");
     });
   </script>
 </head>
@@ -143,11 +143,11 @@
     <p>Sidebar Content</p>
     <script>
       // Wire sidebar to show/hide based on data-class
-      MiniBus.wire("sidebarComponent", "data-class", "classList.hidden");
+      MiniState.wire("sidebarComponent", "data-class", "classList.hidden");
 
       // Watch button's click state to toggle sidebar visibility using FSM transitions
-      MiniBus.watch("buttonComponent.data-click", (value) => {
-        MiniBus.requestStateTransition(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
+      MiniState.watch("buttonComponent.data-click", (value) => {
+        MiniState.requestStateTransition(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
       });
     </script>
   </div>
@@ -157,14 +157,14 @@
     <button id="buttonComponent.toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
     <script>
       // Wire button text to update based on data-click
-      MiniBus.wire("buttonComponent.toggleButton", "data-text", "textContent");
+      MiniState.wire("buttonComponent.toggleButton", "data-text", "textContent");
 
       // Register click event to toggle data-click state
-      MiniBus.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
+      MiniState.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
 
       // Update button text and toggle sidebar state based on click state
-      MiniBus.watch("buttonComponent.data-click", (value) => {
-        MiniBus.requestStateTransition(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
+      MiniState.watch("buttonComponent.data-click", (value) => {
+        MiniState.requestStateTransition(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
       });
     </script>
   </div>
