@@ -6,6 +6,28 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="ministate.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Define initial states
+      MiniState.defineState("SIDEBAR_HIDDEN", {
+        "sidebarComponent.data-class": "hidden",
+        "buttonComponent.toggleButton.data-text": "Show Sidebar",
+        "buttonComponent.data-click": "false"
+      });
+
+      MiniState.defineState("SIDEBAR_VISIBLE", {
+        "sidebarComponent.data-class": "",
+        "buttonComponent.toggleButton.data-text": "Hide Sidebar",
+        "buttonComponent.data-click": "true"
+      });
+
+      // Define transitions between states
+      MiniState.defineTransition("SIDEBAR_HIDDEN", "SIDEBAR_VISIBLE", async () => true);
+      MiniState.defineTransition("SIDEBAR_VISIBLE", "SIDEBAR_HIDDEN", async () => true);
+
+      await MiniState.initializeState("SIDEBAR_HIDDEN");
+    });
+  </script>
 </head>
 <body>
 
