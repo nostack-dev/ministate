@@ -6,7 +6,6 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    // MiniState library
     const MiniState = (() => {
       const appState = JSON.parse(localStorage.getItem('state')) || {};
       const elementBindings = {};
@@ -190,7 +189,8 @@
       MiniState.bindElement("sidebarComponent", "data-class", "classList.hidden");
 
       MiniState.observeState("buttonComponent.data-click", async (value) => {
-        await MiniState.transitionState(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
+        // Request change to own state instead of directly transitioning
+        await MiniState.changeState("sidebarComponent.data-class", value === "true" ? "" : "hidden");
       });
     </script>
   </div>
@@ -204,7 +204,8 @@
       MiniState.bindEvent("buttonComponent", "click", "buttonComponent.data-click");
 
       MiniState.observeState("buttonComponent.data-click", async (value) => {
-        await MiniState.transitionState(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
+        // Request change to own state instead of directly transitioning
+        await MiniState.changeState("buttonComponent.toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
       });
     </script>
   </div>
