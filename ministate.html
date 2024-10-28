@@ -9,126 +9,126 @@
   <!-- MiniState with FSM -->
   <script>
     const MiniState = (() => {
-      const state = JSON.parse(localStorage.getItem('state')) || {};
-      const wiring = {};
-      const watchers = {};
-      const predefinedStates = {};
-      const transitions = {};
+      const appState = JSON.parse(localStorage.getItem('state')) || {};
+      const elementBindings = {};
+      const stateWatchers = {};
+      const states = {};
+      const stateTransitions = {};
       let currentState = "";
 
-      const saveState = () => {
-        localStorage.setItem('state', JSON.stringify(state));
+      const persistState = () => {
+        localStorage.setItem('state', JSON.stringify(appState));
       };
 
       return {
-        addState(stateName, stateDefinition) {
-          predefinedStates[stateName] = stateDefinition;
+        defineState(stateName, stateDefinition) {
+          states[stateName] = stateDefinition;
         },
 
-        addTransition(fromState, toState, condition) {
-          if (!transitions[fromState]) transitions[fromState] = [];
-          transitions[fromState].push({ toState, condition });
+        defineTransition(fromState, toState, condition) {
+          if (!stateTransitions[fromState]) stateTransitions[fromState] = [];
+          stateTransitions[fromState].push({ toState, condition });
         },
 
-        async init(initialStateKey = "SIDEBAR_HIDDEN") {
+        async initializeState(initialStateKey = "SIDEBAR_HIDDEN") {
           currentState = initialStateKey;
-          await this._applyState(predefinedStates[initialStateKey]);
-          console.log("Initial State:", currentState, JSON.stringify(state, null, 2));
+          await this.applyStateDefinition(states[initialStateKey]);
+          console.log("Initial State:", currentState, JSON.stringify(appState, null, 2));
         },
 
-        async wire(elementId, dataAttribute, domProperty) {
-          wiring[`${elementId}.${dataAttribute}`] = domProperty;
+        async bindElement(elementId, dataAttribute, domProperty) {
+          elementBindings[`${elementId}.${dataAttribute}`] = domProperty;
           const stateKey = `${elementId}.${dataAttribute}`;
-          const currentValue = state[stateKey];
-          await this._applyStateChange(elementId, dataAttribute, currentValue);
+          const currentValue = appState[stateKey];
+          await this.updateElement(elementId, dataAttribute, currentValue);
 
-          this.watch(stateKey, async (newValue) => {
-            await this._applyStateChange(elementId, dataAttribute, newValue);
+          this.observeState(stateKey, async (newValue) => {
+            await this.updateElement(elementId, dataAttribute, newValue);
           });
         },
 
-        async _applyStateChange(elementId, dataAttribute, newValue) {
+        async updateElement(elementId, dataAttribute, newValue) {
           const element = document.getElementById(elementId);
           if (!element) return;
 
-          const domProperty = wiring[`${elementId}.${dataAttribute}`];
+          const domProperty = elementBindings[`${elementId}.${dataAttribute}`];
           if (domProperty === "classList.hidden") {
             newValue === "hidden" ? element.classList.add("hidden") : element.classList.remove("hidden");
           } else {
             element[domProperty] = newValue;
           }
-          saveState();
+          persistState();
         },
 
-        async requestStateTransition(newState) {
+        async transitionState(newState) {
           if (currentState === newState) return;
 
-          const allowedTransitions = transitions[currentState] || [];
+          const allowedTransitions = stateTransitions[currentState] || [];
           const validTransition = allowedTransitions.find(t => t.toState === newState && (!t.condition || t.condition()));
 
           if (validTransition) {
             currentState = newState;
-            await this._applyState(predefinedStates[newState]);
-            console.log("Transitioned to State:", currentState, JSON.stringify(state, null, 2));
+            await this.applyStateDefinition(states[newState]);
+            console.log("Transitioned to State:", currentState, JSON.stringify(appState, null, 2));
           } else {
             console.error(`Transition from "${currentState}" to "${newState}" not allowed.`);
           }
         },
 
-        async _applyState(stateDefinition) {
+        async applyStateDefinition(stateDefinition) {
           for (const [stateKey, value] of Object.entries(stateDefinition)) {
-            await this.requestStateChange(stateKey, value);
+            await this.changeState(stateKey, value);
           }
         },
 
-        async requestStateChange(stateKey, newValue) {
-          if (state[stateKey] !== newValue) {
-            state[stateKey] = newValue;
-            if (watchers[stateKey]) {
-              for (const callback of watchers[stateKey]) {
+        async changeState(stateKey, newValue) {
+          if (appState[stateKey] !== newValue) {
+            appState[stateKey] = newValue;
+            if (stateWatchers[stateKey]) {
+              for (const callback of stateWatchers[stateKey]) {
                 await callback(newValue);
               }
             }
-            saveState();
+            persistState();
           }
         },
 
-        watch(stateKey, callback) {
-          if (!watchers[stateKey]) watchers[stateKey] = [];
-          watchers[stateKey].push(callback);
+        observeState(stateKey, callback) {
+          if (!stateWatchers[stateKey]) stateWatchers[stateKey] = [];
+          stateWatchers[stateKey].push(callback);
         },
 
-        registerEvent(elementId, eventType, stateKeyToChange) {
+        bindEvent(elementId, eventType, stateKeyToChange) {
           const element = document.getElementById(elementId);
           if (!element) return;
 
           element.addEventListener(eventType, async () => {
-            const currentValue = state[stateKeyToChange] === "true";
-            await this.requestStateChange(stateKeyToChange, (!currentValue).toString());
+            const currentValue = appState[stateKeyToChange] === "true";
+            await this.changeState(stateKeyToChange, (!currentValue).toString());
           });
         }
       };
     })();
 
     // Define initial states
-    MiniState.addState("SIDEBAR_HIDDEN", {
+    MiniState.defineState("SIDEBAR_HIDDEN", {
       "sidebarComponent.data-class": "hidden",
       "buttonComponent.toggleButton.data-text": "Show Sidebar",
       "buttonComponent.data-click": "false"
     });
 
-    MiniState.addState("SIDEBAR_VISIBLE", {
+    MiniState.defineState("SIDEBAR_VISIBLE", {
       "sidebarComponent.data-class": "",
       "buttonComponent.toggleButton.data-text": "Hide Sidebar",
       "buttonComponent.data-click": "true"
     });
 
     // Define transitions between states
-    MiniState.addTransition("SIDEBAR_HIDDEN", "SIDEBAR_VISIBLE", async () => true);
-    MiniState.addTransition("SIDEBAR_VISIBLE", "SIDEBAR_HIDDEN", async () => true);
+    MiniState.defineTransition("SIDEBAR_HIDDEN", "SIDEBAR_VISIBLE", async () => true);
+    MiniState.defineTransition("SIDEBAR_VISIBLE", "SIDEBAR_HIDDEN", async () => true);
 
     document.addEventListener('DOMContentLoaded', async () => {
-      await MiniState.init("SIDEBAR_HIDDEN");
+      await MiniState.initializeState("SIDEBAR_HIDDEN");
     });
   </script>
 </head>
@@ -138,10 +138,10 @@
   <div id="sidebarComponent" class="w-64 p-4 mt-6 bg-base-200 hidden" data-class="hidden" role="complementary" aria-hidden="true">
     <p>Sidebar Content</p>
     <script>
-      MiniState.wire("sidebarComponent", "data-class", "classList.hidden");
+      MiniState.bindElement("sidebarComponent", "data-class", "classList.hidden");
 
-      MiniState.watch("buttonComponent.data-click", async (value) => {
-        await MiniState.requestStateTransition(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
+      MiniState.observeState("buttonComponent.data-click", async (value) => {
+        await MiniState.transitionState(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
       });
     </script>
   </div>
@@ -150,12 +150,12 @@
   <div id="buttonComponent" data-click="false">
     <button id="buttonComponent.toggleButton" class="btn btn-primary" data-text="Show Sidebar" aria-controls="sidebarComponent">Show Sidebar</button>
     <script>
-      MiniState.wire("buttonComponent.toggleButton", "data-text", "textContent");
+      MiniState.bindElement("buttonComponent.toggleButton", "data-text", "textContent");
 
-      MiniState.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
+      MiniState.bindEvent("buttonComponent", "click", "buttonComponent.data-click");
 
-      MiniState.watch("buttonComponent.data-click", async (value) => {
-        await MiniState.requestStateTransition(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
+      MiniState.observeState("buttonComponent.data-click", async (value) => {
+        await MiniState.transitionState(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
       });
     </script>
   </div>
