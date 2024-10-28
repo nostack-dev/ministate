@@ -9,46 +9,45 @@
   <!-- MiniState with FSM -->
   <script>
     const MiniState = (() => {
-      const state = {};
+      const state = JSON.parse(localStorage.getItem('state')) || {};
       const wiring = {};
       const watchers = {};
       const predefinedStates = {};
       const transitions = {};
       let currentState = "";
 
+      const saveState = () => {
+        localStorage.setItem('state', JSON.stringify(state));
+      };
+
       return {
-        // Add predefined states
         addState(stateName, stateDefinition) {
           predefinedStates[stateName] = stateDefinition;
         },
 
-        // Add allowed transitions between states
         addTransition(fromState, toState, condition) {
           if (!transitions[fromState]) transitions[fromState] = [];
           transitions[fromState].push({ toState, condition });
         },
 
-        // Initialize MiniState with the initial state
-        init(initialStateKey = "SIDEBAR_HIDDEN") {
+        async init(initialStateKey = "SIDEBAR_HIDDEN") {
           currentState = initialStateKey;
-          this._applyState(predefinedStates[initialStateKey]);
+          await this._applyState(predefinedStates[initialStateKey]);
           console.log("Initial State:", currentState, JSON.stringify(state, null, 2));
         },
 
-        // Wire elements to update based on state changes
-        wire(elementId, dataAttribute, domProperty) {
+        async wire(elementId, dataAttribute, domProperty) {
           wiring[`${elementId}.${dataAttribute}`] = domProperty;
           const stateKey = `${elementId}.${dataAttribute}`;
           const currentValue = state[stateKey];
-          this._applyStateChange(elementId, dataAttribute, currentValue);
+          await this._applyStateChange(elementId, dataAttribute, currentValue);
 
-          this.watch(stateKey, (newValue) => {
-            this._applyStateChange(elementId, dataAttribute, newValue);
+          this.watch(stateKey, async (newValue) => {
+            await this._applyStateChange(elementId, dataAttribute, newValue);
           });
         },
 
-        // Apply changes to the DOM when the state updates
-        _applyStateChange(elementId, dataAttribute, newValue) {
+        async _applyStateChange(elementId, dataAttribute, newValue) {
           const element = document.getElementById(elementId);
           if (!element) return;
 
@@ -58,10 +57,10 @@
           } else {
             element[domProperty] = newValue;
           }
+          saveState();
         },
 
-        // Request a state transition based on the FSM rules
-        requestStateTransition(newState) {
+        async requestStateTransition(newState) {
           if (currentState === newState) {
             return;
           }
@@ -71,50 +70,48 @@
 
           if (validTransition) {
             currentState = newState;
-            this._applyState(predefinedStates[newState]);
+            await this._applyState(predefinedStates[newState]);
             console.log("Transitioned to State:", currentState, JSON.stringify(state, null, 2));
           } else {
             console.error(`Transition from "${currentState}" to "${newState}" not allowed.`);
           }
         },
 
-        // Apply a full state definition to update multiple elements at once
-        _applyState(stateDefinition) {
-          Object.entries(stateDefinition).forEach(([stateKey, value]) => {
-            this.requestStateChange(stateKey, value);
-          });
-        },
-
-        // Request to update individual state and trigger watchers
-        requestStateChange(stateKey, newValue) {
-          if (state[stateKey] !== newValue) {
-            state[stateKey] = newValue;
-            if (watchers[stateKey]) {
-              watchers[stateKey].forEach(callback => callback(newValue));
-            }
+        async _applyState(stateDefinition) {
+          for (const [stateKey, value] of Object.entries(stateDefinition)) {
+            await this.requestStateChange(stateKey, value);
           }
         },
 
-        // Register watchers to listen for specific state changes
+        async requestStateChange(stateKey, newValue) {
+          if (state[stateKey] !== newValue) {
+            state[stateKey] = newValue;
+            if (watchers[stateKey]) {
+              for (const callback of watchers[stateKey]) {
+                await callback(newValue);
+              }
+            }
+            saveState();
+          }
+        },
+
         watch(stateKey, callback) {
           if (!watchers[stateKey]) watchers[stateKey] = [];
           watchers[stateKey].push(callback);
         },
 
-        // Attach events that trigger state changes
         registerEvent(elementId, eventType, stateKeyToChange) {
           const element = document.getElementById(elementId);
           if (!element) return;
 
-          element.addEventListener(eventType, () => {
+          element.addEventListener(eventType, async () => {
             const currentValue = state[stateKeyToChange] === "true";
-            this.requestStateChange(stateKeyToChange, (!currentValue).toString());
+            await this.requestStateChange(stateKeyToChange, (!currentValue).toString());
           });
         }
       };
     })();
 
-    // Define initial states
     MiniState.addState("SIDEBAR_HIDDEN", {
       "sidebarComponent.data-class": "hidden",
       "buttonComponent.toggleButton.data-text": "Show Sidebar",
@@ -127,12 +124,11 @@
       "buttonComponent.data-click": "true"
     });
 
-    // Define transitions between states
-    MiniState.addTransition("SIDEBAR_HIDDEN", "SIDEBAR_VISIBLE", () => true);
-    MiniState.addTransition("SIDEBAR_VISIBLE", "SIDEBAR_HIDDEN", () => true);
+    MiniState.addTransition("SIDEBAR_HIDDEN", "SIDEBAR_VISIBLE", async () => true);
+    MiniState.addTransition("SIDEBAR_VISIBLE", "SIDEBAR_HIDDEN", async () => true);
 
-    document.addEventListener('DOMContentLoaded', () => {
-      MiniState.init("SIDEBAR_HIDDEN");
+    document.addEventListener('DOMContentLoaded', async () => {
+      await MiniState.init("SIDEBAR_HIDDEN");
     });
   </script>
 </head>
@@ -142,12 +138,10 @@
   <div id="sidebarComponent" class="w-64 p-4 mt-6 bg-base-200 hidden" data-class="hidden">
     <p>Sidebar Content</p>
     <script>
-      // Wire sidebar to show/hide based on data-class
       MiniState.wire("sidebarComponent", "data-class", "classList.hidden");
 
-      // Watch button's click state to toggle sidebar visibility using FSM transitions
-      MiniState.watch("buttonComponent.data-click", (value) => {
-        MiniState.requestStateTransition(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
+      MiniState.watch("buttonComponent.data-click", async (value) => {
+        await MiniState.requestStateTransition(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
       });
     </script>
   </div>
@@ -156,15 +150,12 @@
   <div id="buttonComponent" data-click="false">
     <button id="buttonComponent.toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
     <script>
-      // Wire button text to update based on data-click
       MiniState.wire("buttonComponent.toggleButton", "data-text", "textContent");
 
-      // Register click event to toggle data-click state
       MiniState.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
 
-      // Update button text and toggle sidebar state based on click state
-      MiniState.watch("buttonComponent.data-click", (value) => {
-        MiniState.requestStateTransition(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
+      MiniState.watch("buttonComponent.data-click", async (value) => {
+        await MiniState.requestStateTransition(value === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN");
       });
     </script>
   </div>
