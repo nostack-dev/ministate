@@ -11,8 +11,28 @@ const MiniState = (() => {
   };
 
   return {
+    getCurrentState() {
+      return currentState;
+    },
+
     defineState(stateName, stateDefinition) {
       states[stateName] = stateDefinition;
+    },
+
+    updateState(stateName, stateDefinition) {
+      if (states[stateName]) {
+        states[stateName] = stateDefinition;
+      } else {
+        console.error(`State "${stateName}" does not exist.`);
+      }
+    },
+
+    removeState(stateName) {
+      if (states[stateName]) {
+        delete states[stateName];
+      } else {
+        console.error(`State "${stateName}" does not exist.`);
+      }
     },
 
     defineTransition(fromState, toState, condition) {
@@ -20,7 +40,37 @@ const MiniState = (() => {
       stateTransitions[fromState].push({ toState, condition });
     },
 
-    async initializeState(initialStateKey = "SIDEBAR_HIDDEN") {
+    updateTransition(fromState, toState, condition) {
+      if (stateTransitions[fromState]) {
+        const transition = stateTransitions[fromState].find(t => t.toState === toState);
+        if (transition) {
+          transition.condition = condition;
+        } else {
+          console.error(`Transition from "${fromState}" to "${toState}" does not exist.`);
+        }
+      } else {
+        console.error(`State "${fromState}" does not have any transitions.`);
+      }
+    },
+
+    removeTransition(fromState, toState) {
+      if (stateTransitions[fromState]) {
+        const index = stateTransitions[fromState].findIndex(t => t.toState === toState);
+        if (index !== -1) {
+          stateTransitions[fromState].splice(index, 1);
+        } else {
+          console.error(`Transition from "${fromState}" to "${toState}" does not exist.`);
+        }
+      } else {
+        console.error(`State "${fromState}" does not have any transitions.`);
+      }
+    },
+
+    async initializeState(initialStateKey) {
+      if (!states[initialStateKey]) {
+        console.error(`State "${initialStateKey}" does not exist.`);
+        return;
+      }
       currentState = initialStateKey;
       await this.applyStateDefinition(states[initialStateKey]);
       console.log("Initial State:", currentState, JSON.stringify(appState, null, 2));
@@ -99,24 +149,3 @@ const MiniState = (() => {
     }
   };
 })();
-
-// Define initial states
-MiniState.defineState("SIDEBAR_HIDDEN", {
-  "sidebarComponent.data-class": "hidden",
-  "buttonComponent.toggleButton.data-text": "Show Sidebar",
-  "buttonComponent.data-click": "false"
-});
-
-MiniState.defineState("SIDEBAR_VISIBLE", {
-  "sidebarComponent.data-class": "",
-  "buttonComponent.toggleButton.data-text": "Hide Sidebar",
-  "buttonComponent.data-click": "true"
-});
-
-// Define transitions between states
-MiniState.defineTransition("SIDEBAR_HIDDEN", "SIDEBAR_VISIBLE", async () => true);
-MiniState.defineTransition("SIDEBAR_VISIBLE", "SIDEBAR_HIDDEN", async () => true);
-
-document.addEventListener('DOMContentLoaded', async () => {
-  await MiniState.initializeState("SIDEBAR_HIDDEN");
-});
