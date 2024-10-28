@@ -61,9 +61,7 @@
         },
 
         async requestStateTransition(newState) {
-          if (currentState === newState) {
-            return;
-          }
+          if (currentState === newState) return;
 
           const allowedTransitions = transitions[currentState] || [];
           const validTransition = allowedTransitions.find(t => t.toState === newState && (!t.condition || t.condition()));
@@ -112,6 +110,7 @@
       };
     })();
 
+    // Define initial states
     MiniState.addState("SIDEBAR_HIDDEN", {
       "sidebarComponent.data-class": "hidden",
       "buttonComponent.toggleButton.data-text": "Show Sidebar",
@@ -124,6 +123,7 @@
       "buttonComponent.data-click": "true"
     });
 
+    // Define transitions between states
     MiniState.addTransition("SIDEBAR_HIDDEN", "SIDEBAR_VISIBLE", async () => true);
     MiniState.addTransition("SIDEBAR_VISIBLE", "SIDEBAR_HIDDEN", async () => true);
 
@@ -135,7 +135,7 @@
 <body>
 
   <!-- Sidebar Component -->
-  <div id="sidebarComponent" class="w-64 p-4 mt-6 bg-base-200 hidden" data-class="hidden">
+  <div id="sidebarComponent" class="w-64 p-4 mt-6 bg-base-200 hidden" data-class="hidden" role="complementary" aria-hidden="true">
     <p>Sidebar Content</p>
     <script>
       MiniState.wire("sidebarComponent", "data-class", "classList.hidden");
@@ -148,7 +148,7 @@
 
   <!-- Button Component -->
   <div id="buttonComponent" data-click="false">
-    <button id="buttonComponent.toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
+    <button id="buttonComponent.toggleButton" class="btn btn-primary" data-text="Show Sidebar" aria-controls="sidebarComponent">Show Sidebar</button>
     <script>
       MiniState.wire("buttonComponent.toggleButton", "data-text", "textContent");
 
