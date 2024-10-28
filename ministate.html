@@ -2,20 +2,34 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MiniState with FSM</title>
+  <title>MiniState with DOM-Based FSM</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     const MiniState = (() => {
-      const appState = JSON.parse(localStorage.getItem('state')) || {};
       const elementBindings = {};
       const stateWatchers = {};
       const states = {};
       const stateTransitions = {};
       let currentState = "";
+      let isInitializing = true;  // Flag to avoid redundant logs during initialization
 
-      const persistState = () => {
-        localStorage.setItem('state', JSON.stringify(appState));
+      // Reads state directly from the DOM attributes
+      const deriveStateFromDOM = () => {
+        const derivedState = {};
+        for (const [key, domProperty] of Object.entries(elementBindings)) {
+          const [elementId, dataAttribute] = key.split('.');
+          const element = document.getElementById(elementId);
+          if (element) {
+            derivedState[key] = element.getAttribute(dataAttribute) || "";
+          }
+        }
+        return derivedState;
+      };
+
+      const matchFullState = (stateDefinition) => {
+        const domState = deriveStateFromDOM();
+        return Object.entries(stateDefinition).every(([key, value]) => domState[key] === value);
       };
 
       return {
@@ -27,51 +41,9 @@
           states[stateName] = stateDefinition;
         },
 
-        updateState(stateName, stateDefinition) {
-          if (states[stateName]) {
-            states[stateName] = stateDefinition;
-          } else {
-            console.error(`State "${stateName}" does not exist.`);
-          }
-        },
-
-        removeState(stateName) {
-          if (states[stateName]) {
-            delete states[stateName];
-          } else {
-            console.error(`State "${stateName}" does not exist.`);
-          }
-        },
-
         defineTransition(fromState, toState, condition) {
           if (!stateTransitions[fromState]) stateTransitions[fromState] = [];
           stateTransitions[fromState].push({ toState, condition });
-        },
-
-        updateTransition(fromState, toState, condition) {
-          if (stateTransitions[fromState]) {
-            const transition = stateTransitions[fromState].find(t => t.toState === toState);
-            if (transition) {
-              transition.condition = condition;
-            } else {
-              console.error(`Transition from "${fromState}" to "${toState}" does not exist.`);
-            }
-          } else {
-            console.error(`State "${fromState}" does not have any transitions.`);
-          }
-        },
-
-        removeTransition(fromState, toState) {
-          if (stateTransitions[fromState]) {
-            const index = stateTransitions[fromState].findIndex(t => t.toState === toState);
-            if (index !== -1) {
-              stateTransitions[fromState].splice(index, 1);
-            } else {
-              console.error(`Transition from "${fromState}" to "${toState}" does not exist.`);
-            }
-          } else {
-            console.error(`State "${fromState}" does not have any transitions.`);
-          }
         },
 
         async initializeState(initialStateKey) {
@@ -81,14 +53,18 @@
           }
           currentState = initialStateKey;
           await this.applyStateDefinition(states[initialStateKey]);
-          console.log("Initial State:", currentState, JSON.stringify(appState, null, 2));
+          console.log("Initialized to State:", currentState, JSON.stringify(deriveStateFromDOM(), null, 2));
+          isInitializing = false;  // Turn off initialization flag after initial state set
         },
 
         async bindElement(elementId, dataAttribute, domProperty) {
           elementBindings[`${elementId}.${dataAttribute}`] = domProperty;
           const stateKey = `${elementId}.${dataAttribute}`;
-          const currentValue = appState[stateKey];
-          await this.updateElement(elementId, dataAttribute, currentValue);
+          const element = document.getElementById(elementId);
+          if (!element) return;
+
+          // Initialize directly from the DOM
+          await this.updateElement(elementId, dataAttribute, element.getAttribute(dataAttribute) || "");
 
           this.observeState(stateKey, async (newValue) => {
             await this.updateElement(elementId, dataAttribute, newValue);
@@ -105,7 +81,7 @@
           } else {
             element[domProperty] = newValue;
           }
-          persistState();
+          if (!isInitializing) console.log("Current DOM State:", JSON.stringify(deriveStateFromDOM(), null, 2));
         },
 
         async transitionState(newState) {
@@ -117,7 +93,7 @@
           if (validTransition) {
             currentState = newState;
             await this.applyStateDefinition(states[newState]);
-            console.log("Transitioned to State:", currentState, JSON.stringify(appState, null, 2));
+            console.log("Transitioned to State:", currentState, JSON.stringify(deriveStateFromDOM(), null, 2));
           } else {
             console.error(`Transition from "${currentState}" to "${newState}" not allowed.`);
           }
@@ -130,14 +106,25 @@
         },
 
         async changeState(stateKey, newValue) {
-          if (appState[stateKey] !== newValue) {
-            appState[stateKey] = newValue;
+          const [elementId, dataAttribute] = stateKey.split('.');
+          const element = document.getElementById(elementId);
+          if (element) {
+            element.setAttribute(dataAttribute, newValue);
             if (stateWatchers[stateKey]) {
               for (const callback of stateWatchers[stateKey]) {
                 await callback(newValue);
               }
             }
-            persistState();
+          }
+          this.checkForFullStateTransition();
+        },
+
+        checkForFullStateTransition() {
+          for (const [stateName, stateDefinition] of Object.entries(states)) {
+            if (matchFullState(stateDefinition)) {
+              this.transitionState(stateName);
+              break;
+            }
           }
         },
 
@@ -151,9 +138,14 @@
           if (!element) return;
 
           element.addEventListener(eventType, async () => {
-            const currentValue = appState[stateKeyToChange] === "true";
-            await this.changeState(stateKeyToChange, (!currentValue).toString());
+            const currentValue = deriveStateFromDOM()[stateKeyToChange];
+            const newValue = currentValue === "true" ? "false" : "true";
+            await this.requestLocalStateChange(stateKeyToChange, newValue);
           });
+        },
+
+        async requestLocalStateChange(stateKey, newValue) {
+          await this.changeState(stateKey, newValue);
         }
       };
     })();
@@ -189,8 +181,7 @@
       MiniState.bindElement("sidebarComponent", "data-class", "classList.hidden");
 
       MiniState.observeState("buttonComponent.data-click", async (value) => {
-        // Request change to own state instead of directly transitioning
-        await MiniState.changeState("sidebarComponent.data-class", value === "true" ? "" : "hidden");
+        await MiniState.requestLocalStateChange("sidebarComponent.data-class", value === "true" ? "" : "hidden");
       });
     </script>
   </div>
@@ -204,8 +195,7 @@
       MiniState.bindEvent("buttonComponent", "click", "buttonComponent.data-click");
 
       MiniState.observeState("buttonComponent.data-click", async (value) => {
-        // Request change to own state instead of directly transitioning
-        await MiniState.changeState("buttonComponent.toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+        await MiniState.requestLocalStateChange("buttonComponent.toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
       });
     </script>
   </div>
