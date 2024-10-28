@@ -62,6 +62,10 @@
 
         // Request a state transition based on the FSM rules
         requestStateTransition(newState) {
+          if (currentState === newState) {
+            return;
+          }
+
           const allowedTransitions = transitions[currentState] || [];
           const validTransition = allowedTransitions.find(t => t.toState === newState && (!t.condition || t.condition()));
 
@@ -113,13 +117,13 @@
     // Define initial states
     MiniBus.addState("SIDEBAR_HIDDEN", {
       "sidebarComponent.data-class": "hidden",
-      "toggleButton.data-text": "Show Sidebar",
+      "buttonComponent.toggleButton.data-text": "Show Sidebar",
       "buttonComponent.data-click": "false"
     });
 
     MiniBus.addState("SIDEBAR_VISIBLE", {
       "sidebarComponent.data-class": "",
-      "toggleButton.data-text": "Hide Sidebar",
+      "buttonComponent.toggleButton.data-text": "Hide Sidebar",
       "buttonComponent.data-click": "true"
     });
 
@@ -150,10 +154,10 @@
 
   <!-- Button Component -->
   <div id="buttonComponent" data-click="false">
-    <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
+    <button id="buttonComponent.toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
     <script>
       // Wire button text to update based on data-click
-      MiniBus.wire("toggleButton", "data-text", "textContent");
+      MiniBus.wire("buttonComponent.toggleButton", "data-text", "textContent");
 
       // Register click event to toggle data-click state
       MiniBus.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
