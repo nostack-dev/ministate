@@ -161,5 +161,40 @@ This example shows how to use the `watch` method with a cleanup mechanism.
   </script>
 </div>
 ```
+### More Examples
+```
+<!-- Sidebar Component -->
+<div id="sidebarComponent" data-class="hidden" class="bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transform transition-transform duration-300 ease-in-out z-10 hidden">
+  <div class="h-16 flex items-center justify-between px-4">
+    <button class="toggleSidebarButton text-accent" aria-label="Toggle Sidebar">☰</button>
+  </div>
 
-These examples show how the MiniState library integrates seamlessly into components, ensuring modular, maintainable, and collision-free code.
+  <nav class="flex-1 p-4">
+    <ul class="menu w-full">
+      <li>Sidebar Entry</li>
+    </ul>
+  </nav>
+
+  <script>
+    MiniState.wire("sidebarComponent", "data-class", "classList", { toggleClass: "hidden" });
+
+    MiniState.watch("buttonComponent.data-click", (value) => {
+      MiniState.requestStateChange("sidebarComponent.data-class", value === "true" ? "" : "hidden");
+    });
+  </script>
+</div>
+
+<!-- Button Component -->
+<div id="buttonComponent" data-click="false" class="flex justify-center items-center w-full h-full">
+  <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
+
+  <script>
+    MiniState.wire("toggleButton", "data-text", "textContent");
+    MiniState.registerEvent("toggleButton", "click", "buttonComponent.data-click");
+
+    MiniState.watch("buttonComponent.data-click", (value) => {
+      MiniState.requestStateChange("toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+    });
+  </script>
+</div>
+```
