@@ -1,14 +1,11 @@
-
 # 📜 MiniState – Requirements
 
 ## Purpose
-
 The MiniState library is designed to provide a clear, declarative, and component-centric approach to managing state across a UI, ensuring that state changes are predictable, isolated within components, and entirely driven by `data-*` attributes as the single source of truth.
 
 ## Requirements for the MiniState Library
 
 ### Predefined States Outside Components
-
 **Purpose:** Predefined states should be defined outside of components to ensure separation of concerns and prevent tight coupling between component structure and application logic.
 
 **Behavior:**
@@ -16,7 +13,6 @@ The MiniState library is designed to provide a clear, declarative, and component
 - This ensures that state definitions are reusable and maintainable, promoting a clean and modular architecture.
 
 ### Declarative DOM Data Attributes as the Single Source of Truth
-
 **Purpose:** The `data-*` attributes within each component are the single source of truth for state management. These attributes are defined only within the component's scope (i.e., within the root `div` or child elements of the component).
 
 **Behavior:**
@@ -25,7 +21,6 @@ The MiniState library is designed to provide a clear, declarative, and component
 - This approach is entirely declarative, ensuring that components' state is described explicitly in the HTML, rather than manipulated imperatively.
 
 ### Transactional State Changes with Predefined State Matching
-
 **Purpose:** Ensure state changes are controlled, predictable, and aligned with predefined application states.
 
 **Behavior:**
@@ -33,10 +28,7 @@ The MiniState library is designed to provide a clear, declarative, and component
 - Upon a valid state change request, the MiniState library updates `data-*` attributes and, consequently, the bound DOM properties.
 
 ### Component Structure
-
-MiniTemplate’s components are modular, with component IDs, scoped CSS, and collision-free JavaScript. Here’s an example of how a component is structured, showcasing the best practices for performance and maintainability:
-
-**Code Example:**
+MiniTemplate’s components are modular, with component IDs, scoped CSS, and collision-free JavaScript. Here’s an example of how a component is structured, showcasing best practices for performance and maintainability:
 
 ```html
 <div id="button_default" class="btn" aria-label="Button Component">
@@ -45,14 +37,12 @@ MiniTemplate’s components are modular, with component IDs, scoped CSS, and col
         // local state
         (() => {
            
-            });
         })();
     </script>
 </div>
 ```
 
 ## Predefined State Examples
-
 To ensure predictable and controlled state changes, MiniState supports predefined state configurations. Here’s an example of defining and initializing predefined states for components:
 
 ```html
@@ -74,8 +64,7 @@ To ensure predictable and controlled state changes, MiniState supports predefine
 
 ## Examples of MiniState Integration in Components
 
-# Declarative DOM Data Attributes as the Single Source of Truth
-
+### Declarative DOM Data Attributes as the Single Source of Truth
 This example shows how to use `data-*` attributes to manage the state of a sidebar component.
 
 ```html
@@ -90,7 +79,6 @@ This example shows how to use `data-*` attributes to manage the state of a sideb
 ```
 
 ### Transactional State Changes with Predefined State Matching
-
 This example shows how to update a button's text based on the current state of the sidebar.
 
 ```html
@@ -105,7 +93,6 @@ This example shows how to update a button's text based on the current state of t
 ```
 
 ### Component-Centric Data Binding
-
 This example shows how to use the `wire` method to bind a `data-*` attribute to a DOM property.
 
 ```html
@@ -118,7 +105,6 @@ This example shows how to use the `wire` method to bind a `data-*` attribute to 
 ```
 
 ### Event-Driven Asynchronous Operations
-
 This example shows how to trigger an asynchronous operation, such as fetching data.
 
 ```html
@@ -131,7 +117,6 @@ This example shows how to trigger an asynchronous operation, such as fetching da
 ```
 
 ### Reactive State Watching Without Direct UI Updates
-
 This example shows how to use the `watch` method to reactively respond to state changes.
 
 ```html
@@ -145,7 +130,6 @@ This example shows how to use the `watch` method to reactively respond to state 
 ```
 
 ### Cleanup Mechanisms for Watchers and Asynchronous Operations
-
 This example shows how to use the `watch` method with a cleanup mechanism.
 
 ```html
@@ -158,20 +142,20 @@ This example shows how to use the `watch` method with a cleanup mechanism.
   </script>
 </div>
 ```
+
 ### More Examples
+
 ```html
 <!-- Sidebar Component -->
 <div id="sidebarComponent" data-class="hidden" class="bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transform transition-transform duration-300 ease-in-out z-10 hidden">
   <div class="h-16 flex items-center justify-between px-4">
-    <button class="toggleSidebarButton text-accent" aria-label="Toggle Sidebar">☰</button>
+    <button class="toggleSidebarButton text-accent" aria-label="Toggle Sidebar">☞</button>
   </div>
-
   <nav class="flex-1 p-4">
     <ul class="menu w-full">
       <li>Sidebar Entry</li>
     </ul>
   </nav>
-
   <script>
     MiniState.wire("sidebarComponent", "data-class", "classList", { toggleClass: "hidden" });
 
@@ -184,7 +168,6 @@ This example shows how to use the `watch` method with a cleanup mechanism.
 <!-- Button Component -->
 <div id="buttonComponent" data-click="false" class="flex justify-center items-center w-full h-full">
   <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
-
   <script>
     MiniState.wire("toggleButton", "data-text", "textContent");
     MiniState.registerEvent("toggleButton", "click", "buttonComponent.data-click");
@@ -195,8 +178,6 @@ This example shows how to use the `watch` method with a cleanup mechanism.
   </script>
 </div>
 ```
-
-
 
 ## Fully Declarative Setup
 - Ensure a fully declarative setup, with no reliance on `document.getElementById` or similar direct DOM querying methods.
@@ -253,7 +234,8 @@ This example shows how to use the `watch` method with a cleanup mechanism.
 - Components must not directly invoke document functions, such as document.getElementById. Instead, they should rely solely on the MiniState API methods like watch, wire, and requestLocalStateChange to manage their state and interactions.
 
 ### Properties Whitelist
-```html
+
+```js
 const allowedWatchProperties = [
   "textContent",   // Text within elements
   "innerHTML",     // HTML content within elements
@@ -270,3 +252,4 @@ const allowedWatchProperties = [
   "fetch"          // Custom fetch state for API requests
 ];
 ```
+
