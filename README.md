@@ -251,3 +251,21 @@ This example shows how to use the `watch` method with a cleanup mechanism.
 
 ## No Direct DOM Access within Components
 - Components must not directly invoke document functions, such as document.getElementById. Instead, they should rely solely on the MiniState API methods like watch, wire, and requestLocalStateChange to manage their state and interactions.
+
+```html
+const allowedWatchProperties = [
+  "textContent",   // Text within elements
+  "innerHTML",     // HTML content within elements
+  "value",         // Value of form fields like <input> and <textarea>
+  "click",         // Click events for interactive elements
+  "input",         // Input events for text inputs
+  "change",        // Change events for form fields
+  "submit",        // Submit events for forms
+  "className",     // CSS class changes, supports toggling specific classes (e.g., Tailwind's 'hidden')
+  "classList",     // Allows toggling individual classes directly
+  "checked",       // Checked state for checkboxes and radio buttons
+  "selected",      // Selected state for dropdown options
+  "disabled",      // Disabled state for form controls
+  "fetch"          // Custom fetch state for API requests
+];
+```
