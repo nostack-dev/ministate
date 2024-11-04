@@ -198,3 +198,60 @@ This example shows how to use the `watch` method with a cleanup mechanism.
   </script>
 </div>
 ```
+
+
+
+## Fully Declarative Setup
+- Ensure a fully declarative setup, with no reliance on `document.getElementById` or similar direct DOM querying methods.
+- All state changes and DOM interactions must derive solely from `data-*` attributes and declarative bindings.
+
+## Component Scope and Local State Isolation
+- Components should only manage and watch their own state changes, without altering other components' states directly.
+- Components should only request changes to their internal state without controlling the outcome of the state change.
+
+## Predefined States as Part of the API
+- `predefinedStates` should be part of the API, allowing developers to define and configure them outside the MiniState library for flexible, user-defined state management.
+
+## Transactional State Changes with Full State Match Requirement
+- State transitions should apply only after a full predefined state match, avoiding partial state updates unless the entire transition is valid.
+
+## No Hardcoded Values in MiniState Library
+- Avoid hardcoded values or CSS class toggling (e.g., 'hidden') in the library to ensure full customization.
+
+## Error Handling for Naming Conventions
+- Implement error handling to verify correct naming conventions for component IDs, child element IDs, and data attributes, avoiding misconfiguration.
+
+## Declarative Event and Element Binding
+- Components should use declarative bindings for events and elements, without requiring imperative `bind` calls within scripts.
+- Bind events and elements using `data-bind="element"` or `data-bind="event"` in HTML attributes.
+
+## Data Attributes as State and Event Triggers
+- Treat events and state changes as external triggers managed through `data-*` attributes, without distinguishing between them.
+
+## Hierarchical Naming for Child IDs
+- Use a hierarchical format for child IDs within components (e.g., `toggleButton` without component prefixes).
+
+## Universal State Representation with `data-response`
+- Use `data-response` to represent the final response or output, with intermediate states marked by attributes like `data-idle`, `data-ongoing`, etc.
+
+## Marker Attribute for Fetch Status
+- Introduce a marker attribute to indicate fetch status.
+
+## Standardized State Name for Loading
+- Use `loading` as a universal state name for in-progress or loading states.
+
+## Console Logging for State Transitions Only
+- Limit console logging to final state transitions or complete state objects, avoiding unnecessary logs.
+
+## Uniform API Naming Conventions
+- Ensure consistent naming conventions across the API (e.g., avoid using `content` for one element and `placeholder` for another) to maintain uniformity.
+
+## Final State Indicated by `data-response` Only
+- Use `data-response` solely for final outputs, such as API responses or completed actions, without including placeholders or intermediate values.
+
+## Embedded `<script>` Tags in Components
+- Each component must have an embedded `<script>` tag inside the root `<div>` element (e.g., `<div id="myComponent"><script>...</script></div>`).
+
+## Component State Derived from HTML
+- Component state must be derived directly from `data-*` attributes in HTML as the single source of truth, with no imperative initialization in `init` or components.
+
