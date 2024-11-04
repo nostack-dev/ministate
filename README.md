@@ -44,10 +44,7 @@ MiniTemplate’s components are modular, with component IDs, scoped CSS, and col
     <script>
         // local state
         (() => {
-            let clicked = false;
-            document.getElementById('button_default').addEventListener('click', () => {
-                clicked = !clicked;
-                console.log('Button clicked:', clicked);
+           
             });
         })();
     </script>
