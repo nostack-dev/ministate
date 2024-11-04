@@ -74,7 +74,7 @@ To ensure predictable and controlled state changes, MiniState supports predefine
 
 ## Examples of MiniState Integration in Components
 
-### Declarative DOM Data Attributes as the Single Source of Truth
+# Declarative DOM Data Attributes as the Single Source of Truth
 
 This example shows how to use `data-*` attributes to manage the state of a sidebar component.
 
