@@ -162,7 +162,7 @@ This example shows how to use the `watch` method with a cleanup mechanism.
 </div>
 ```
 ### More Examples
-```
+```html
 <!-- Sidebar Component -->
 <div id="sidebarComponent" data-class="hidden" class="bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transform transition-transform duration-300 ease-in-out z-10 hidden">
   <div class="h-16 flex items-center justify-between px-4">
