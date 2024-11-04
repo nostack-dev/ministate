@@ -252,6 +252,7 @@ This example shows how to use the `watch` method with a cleanup mechanism.
 ## No Direct DOM Access within Components
 - Components must not directly invoke document functions, such as document.getElementById. Instead, they should rely solely on the MiniState API methods like watch, wire, and requestLocalStateChange to manage their state and interactions.
 
+### Properties Whitelist
 ```html
 const allowedWatchProperties = [
   "textContent",   // Text within elements
