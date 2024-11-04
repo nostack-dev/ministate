@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MiniBus with Controlled Transitions</title>
+  <title>MiniBus with Component Scoped Access</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -30,7 +30,6 @@
           const toggleButton = document.getElementById('toggleButton');
           const buttonComponent = document.getElementById('buttonComponent');
 
-          // Initialize state based on DOM
           const isSidebarHidden = sidebarElement.classList.contains('hidden');
           state = {
             "sidebarComponent.data-class": isSidebarHidden ? "hidden" : "",
@@ -73,8 +72,7 @@
   <script>
     const MiniBus = (() => {
       const wiring = {};
-      const permissions = {};
-      let transitionInProgress = false; // Flag to suppress re-triggering
+      let transitionInProgress = false;
 
       return {
         init() {
@@ -88,33 +86,24 @@
           });
         },
 
-        grantPermission(ownerId, stateKey) {
-          if (!permissions[stateKey]) permissions[stateKey] = [];
-          if (!permissions[stateKey].includes(ownerId)) {
-            permissions[stateKey].push(ownerId);
-          }
-        },
+        requestStateChange(stateKey, newValue) {
+          if (transitionInProgress) return;
 
-        requestStateChange(ownerId, stateKey, newValue) {
-          if (transitionInProgress) return; // Exit if a transition is already in progress
+          const targetState = newValue === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN";
+          const targetAttributes = MiniState.predefinedStates[targetState];
 
-          if (permissions[stateKey] && permissions[stateKey].includes(ownerId)) {
-            const targetState = newValue === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN";
-            const targetAttributes = MiniState.predefinedStates[targetState];
-
-            if (
-              targetAttributes &&
-              (targetAttributes[stateKey] === newValue || targetAttributes[stateKey] === "" || targetAttributes[stateKey] == null)
-            ) {
-              transitionInProgress = true; // Set flag to indicate transition in progress
-              console.log(`Transition to ${targetState} matched. Applying changes...`);
-              Object.keys(targetAttributes).forEach(attr => {
-                MiniState.setState(attr, targetAttributes[attr]);
-              });
-              transitionInProgress = false; // Reset flag after completing transition
-            } else {
-              console.warn(`Invalid state transition for ${stateKey} to ${newValue}`);
-            }
+          if (
+            targetAttributes &&
+            (targetAttributes[stateKey] === newValue || targetAttributes[stateKey] === "" || targetAttributes[stateKey] == null)
+          ) {
+            transitionInProgress = true;
+            console.log(`Transition to ${targetState} matched. Applying changes...`);
+            Object.keys(targetAttributes).forEach(attr => {
+              MiniState.setState(attr, targetAttributes[attr]);
+            });
+            transitionInProgress = false;
+          } else {
+            console.warn(`Invalid state transition for ${stateKey} to ${newValue}`);
           }
         },
 
@@ -138,7 +127,7 @@
 
           element.addEventListener(eventType, () => {
             const currentValue = MiniState.getState(stateKeyToChange) === "true";
-            this.requestStateChange(componentId, stateKeyToChange, (!currentValue).toString());
+            this.requestStateChange(stateKeyToChange, (!currentValue).toString());
           });
         }
       };
@@ -149,13 +138,7 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // Initialize MiniBus
       MiniBus.init();
-
-      // Grant permissions for button interactions
-      MiniBus.grantPermission("toggleButton", "buttonComponent.data-click");
-      MiniBus.grantPermission("toggleButton", "toggleButton.data-text");
-      MiniBus.grantPermission("buttonComponent", "sidebarComponent.data-class");
     });
   </script>
 
@@ -174,7 +157,7 @@
       MiniBus.wire("sidebarComponent", "data-class", "classList.hidden");
 
       MiniState.watch("buttonComponent.data-click", (value) => {
-        MiniBus.requestStateChange("buttonComponent", "sidebarComponent.data-class", value === "true" ? "" : "hidden");
+        MiniBus.requestStateChange("sidebarComponent.data-class", value === "true" ? "" : "hidden");
       });
     </script>
   </div>
@@ -187,7 +170,7 @@
       MiniBus.registerEvent("toggleButton", "click", "buttonComponent.data-click");
 
       MiniState.watch("buttonComponent.data-click", (value) => {
-        MiniBus.requestStateChange("buttonComponent", "toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+        MiniBus.requestStateChange("toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
       });
     </script>
   </div>
