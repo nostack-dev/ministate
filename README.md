@@ -249,6 +249,5 @@ This example shows how to use the `watch` method with a cleanup mechanism.
 ## Embedded `<script>` Tags in Components
 - Each component must have an embedded `<script>` tag inside the root `<div>` element (e.g., `<div id="myComponent"><script>...</script></div>`).
 
-## Component State Derived from HTML
-- Component state must be derived directly from `data-*` attributes in HTML as the single source of truth, with no imperative initialization in `init` or components.
-
+## No document.getElementById or similar inside Components
+- Components must not directly invoke document functions, such as document.getElementById. Instead, they should rely solely on the MiniState API methods like watch, wire, and requestLocalStateChange to manage their state and interactions.
