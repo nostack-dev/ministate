@@ -2,203 +2,156 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MiniState with DOM-Based FSM</title>
+  <title>MiniBus with Self-Contained State Management</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    const MiniState = (() => {
-      const elementBindings = {};
-      const stateWatchers = {};
-      const states = {};
-      const stateTransitions = {};
-      let currentState = "";
-      let isInitializing = true;  // Flag to avoid redundant logs during initialization
-
-      // Reads state directly from the DOM attributes
-      const deriveStateFromDOM = () => {
-        const derivedState = {};
-        for (const [key, domProperty] of Object.entries(elementBindings)) {
-          const [elementId, dataAttribute] = key.split('.');
-          const element = document.getElementById(elementId);
-          if (element) {
-            derivedState[key] = element.getAttribute(dataAttribute) || "";
-          }
-        }
-        return derivedState;
-      };
-
-      const matchFullState = (stateDefinition) => {
-        const domState = deriveStateFromDOM();
-        return Object.entries(stateDefinition).every(([key, value]) => domState[key] === value);
-      };
+    const MiniBus = (() => {
+      let state = {};
+      const wiring = {};
+      const watchers = {};
+      const permissions = {};
 
       return {
-        getCurrentState() {
-          return currentState;
-        },
-
-        defineState(stateName, stateDefinition) {
-          states[stateName] = stateDefinition;
-        },
-
-        defineTransition(fromState, toState, condition) {
-          if (!stateTransitions[fromState]) stateTransitions[fromState] = [];
-          stateTransitions[fromState].push({ toState, condition });
-        },
-
-        async initializeState(initialStateKey) {
-          if (!states[initialStateKey]) {
-            console.error(`State "${initialStateKey}" does not exist.`);
-            return;
-          }
-          currentState = initialStateKey;
-          await this.applyStateDefinition(states[initialStateKey]);
-          console.log("Initialized to State:", currentState, JSON.stringify(deriveStateFromDOM(), null, 2));
-          isInitializing = false;  // Turn off initialization flag after initial state set
-        },
-
-        async bindElement(elementId, dataAttribute, domProperty) {
-          elementBindings[`${elementId}.${dataAttribute}`] = domProperty;
-          const stateKey = `${elementId}.${dataAttribute}`;
-          const element = document.getElementById(elementId);
-          if (!element) return;
-
-          // Initialize directly from the DOM
-          await this.updateElement(elementId, dataAttribute, element.getAttribute(dataAttribute) || "");
-
-          this.observeState(stateKey, async (newValue) => {
-            await this.updateElement(elementId, dataAttribute, newValue);
+        init() {
+          document.querySelectorAll('[id]').forEach(element => {
+            [...element.attributes]
+              .filter(attr => attr.name.startsWith('data-'))
+              .forEach(attr => {
+                const stateKey = `${element.id}.${attr.name}`;
+                state[stateKey] = attr.value;
+              });
           });
+          console.log('Initial State:', JSON.stringify(state, null, 2));
         },
 
-        async updateElement(elementId, dataAttribute, newValue) {
-          const element = document.getElementById(elementId);
-          if (!element) return;
+        wire(elementId, dataAttribute, domProperty) {
+          wiring[`${elementId}.${dataAttribute}`] = domProperty;
+        },
 
-          const domProperty = elementBindings[`${elementId}.${dataAttribute}`];
-          if (domProperty === "classList.hidden") {
-            newValue === "hidden" ? element.classList.add("hidden") : element.classList.remove("hidden");
+        watch(stateKey, callback) {
+          if (!watchers[stateKey]) watchers[stateKey] = [];
+          watchers[stateKey].push(callback);
+        },
+
+        grantPermission(ownerId, stateKey) {
+          const [targetElementId] = stateKey.split('.');
+          const ownerElement = document.getElementById(ownerId);
+          const targetElement = document.getElementById(targetElementId);
+
+          if (targetElement && (ownerElement === targetElement || this._isChildOf(targetElement, ownerElement))) {
+            if (!permissions[stateKey]) permissions[stateKey] = [];
+            permissions[stateKey].push(ownerId);
+            console.log(`Permission granted: ${ownerId} can modify ${stateKey}`);
           } else {
-            element[domProperty] = newValue;
-          }
-          if (!isInitializing) console.log("Current DOM State:", JSON.stringify(deriveStateFromDOM(), null, 2));
-        },
-
-        async transitionState(newState) {
-          if (currentState === newState) return;
-
-          const allowedTransitions = stateTransitions[currentState] || [];
-          const validTransition = allowedTransitions.find(t => t.toState === newState && (!t.condition || t.condition()));
-
-          if (validTransition) {
-            currentState = newState;
-            await this.applyStateDefinition(states[newState]);
-            console.log("Transitioned to State:", currentState, JSON.stringify(deriveStateFromDOM(), null, 2));
-          } else {
-            console.error(`Transition from "${currentState}" to "${newState}" not allowed.`);
+            console.error(`Permission denied: ${ownerId} cannot grant permission for ${stateKey}`);
           }
         },
 
-        async applyStateDefinition(stateDefinition) {
-          for (const [stateKey, value] of Object.entries(stateDefinition)) {
-            await this.changeState(stateKey, value);
+        _isChildOf(child, parent) {
+          let node = child;
+          while (node) {
+            if (node === parent) return true;
+            node = node.parentNode;
           }
+          return false;
         },
 
-        async changeState(stateKey, newValue) {
-          const [elementId, dataAttribute] = stateKey.split('.');
-          const element = document.getElementById(elementId);
-          if (element) {
-            element.setAttribute(dataAttribute, newValue);
-            if (stateWatchers[stateKey]) {
-              for (const callback of stateWatchers[stateKey]) {
-                await callback(newValue);
+        requestStateChange(ownerId, stateKey, newValue) {
+          console.log(`Requesting state change: ${ownerId} -> ${stateKey}: ${newValue}`);
+          const [elementId, attribute] = stateKey.split('.');
+
+          if (ownerId === elementId || (permissions[stateKey] && permissions[stateKey].includes(ownerId))) {
+            if (state[stateKey] !== newValue) {
+              state[stateKey] = newValue;
+              this._applyStateChange(elementId, attribute, newValue);
+              if (watchers[stateKey]) {
+                watchers[stateKey].forEach(callback => callback(newValue));
               }
+              console.log("Updated State:", JSON.stringify(state, null, 2));
             }
-          }
-          this.checkForFullStateTransition();
-        },
-
-        checkForFullStateTransition() {
-          for (const [stateName, stateDefinition] of Object.entries(states)) {
-            if (matchFullState(stateDefinition)) {
-              this.transitionState(stateName);
-              break;
-            }
+          } else {
+            console.error(`Permission denied: ${ownerId} cannot modify ${stateKey}`);
           }
         },
 
-        observeState(stateKey, callback) {
-          if (!stateWatchers[stateKey]) stateWatchers[stateKey] = [];
-          stateWatchers[stateKey].push(callback);
-        },
-
-        bindEvent(elementId, eventType, stateKeyToChange) {
+        _applyStateChange(elementId, dataAttribute, newValue) {
           const element = document.getElementById(elementId);
           if (!element) return;
 
-          element.addEventListener(eventType, async () => {
-            const currentValue = deriveStateFromDOM()[stateKeyToChange];
-            const newValue = currentValue === "true" ? "false" : "true";
-            await this.requestLocalStateChange(stateKeyToChange, newValue);
-          });
+          const domProperty = wiring[`${elementId}.${dataAttribute}`];
+          if (domProperty) {
+            if (domProperty === "classList.hidden") {
+              newValue === "hidden" ? element.classList.add("hidden") : element.classList.remove("hidden");
+            } else {
+              element[domProperty] = typeof element[domProperty] === "boolean" ? newValue === "true" : newValue;
+            }
+          } else {
+            element.setAttribute(dataAttribute, newValue);
+          }
         },
 
-        async requestLocalStateChange(stateKey, newValue) {
-          await this.changeState(stateKey, newValue);
+        registerEvent(componentId, eventType, stateKeyToChange) {
+          const element = document.getElementById(componentId);
+          element.addEventListener(eventType, () => {
+            const currentValue = state[stateKeyToChange] === "true";
+            this.requestStateChange(componentId, stateKeyToChange, (!currentValue).toString());
+          });
         }
       };
     })();
 
-    document.addEventListener('DOMContentLoaded', async () => {
-      // Define initial states
-      MiniState.defineState("SIDEBAR_HIDDEN", {
+    const STATES = {
+      SIDEBAR_HIDDEN: {
         "sidebarComponent.data-class": "hidden",
-        "buttonComponent.toggleButton.data-text": "Show Sidebar",
-        "buttonComponent.data-click": "false"
-      });
-
-      MiniState.defineState("SIDEBAR_VISIBLE", {
+        "toggleButton.data-click": "false",
+        "toggleButton.data-text": "Show Sidebar"
+      },
+      SIDEBAR_VISIBLE: {
         "sidebarComponent.data-class": "",
-        "buttonComponent.toggleButton.data-text": "Hide Sidebar",
-        "buttonComponent.data-click": "true"
-      });
+        "toggleButton.data-click": "true",
+        "toggleButton.data-text": "Hide Sidebar"
+      }
+    };
 
-      // Define transitions between states
-      MiniState.defineTransition("SIDEBAR_HIDDEN", "SIDEBAR_VISIBLE", async () => true);
-      MiniState.defineTransition("SIDEBAR_VISIBLE", "SIDEBAR_HIDDEN", async () => true);
+    let currentState = "SIDEBAR_HIDDEN";
 
-      await MiniState.initializeState("SIDEBAR_HIDDEN");
+    document.addEventListener('DOMContentLoaded', () => {
+      MiniBus.init();
     });
   </script>
 </head>
 <body>
 
-  <!-- Sidebar Component -->
-  <div id="sidebarComponent" class="w-64 p-4 mt-6 bg-base-200 hidden" data-class="hidden" role="complementary" aria-hidden="true">
-    <p>Sidebar Content</p>
-    <script>
-      MiniState.bindElement("sidebarComponent", "data-class", "classList.hidden");
+<!-- Sidebar Component -->
+<div id="sidebarComponent" class="w-64 p-4 mt-6 bg-base-200 hidden" data-class="hidden">
+  <p>Sidebar Content</p>
+  <script>
+    MiniBus.wire("sidebarComponent", "data-class", "classList.hidden");
+    MiniBus.grantPermission("sidebarComponent", "sidebarComponent.data-class");
 
-      MiniState.observeState("buttonComponent.data-click", async (value) => {
-        await MiniState.requestLocalStateChange("sidebarComponent.data-class", value === "true" ? "" : "hidden");
-      });
-    </script>
-  </div>
+    MiniBus.watch("buttonComponent.data-click", (value) => {
+      // Sidebar component requests its own state change based on the button click
+      MiniBus.requestStateChange("sidebarComponent", "sidebarComponent.data-class", value === "true" ? "" : "hidden");
+    });
+  </script>
+</div>
 
-  <!-- Button Component -->
-  <div id="buttonComponent" data-click="false">
-    <button id="buttonComponent.toggleButton" class="btn btn-primary" data-text="Show Sidebar" aria-controls="sidebarComponent">Show Sidebar</button>
-    <script>
-      MiniState.bindElement("buttonComponent.toggleButton", "data-text", "textContent");
+<!-- Button Component -->
+<div id="buttonComponent" data-click="false">
+  <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
+  <script>
+    MiniBus.wire("toggleButton", "data-text", "textContent");
+    MiniBus.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
 
-      MiniState.bindEvent("buttonComponent", "click", "buttonComponent.data-click");
+    MiniBus.grantPermission("buttonComponent", "toggleButton.data-text");
 
-      MiniState.observeState("buttonComponent.data-click", async (value) => {
-        await MiniState.requestLocalStateChange("buttonComponent.toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
-      });
-    </script>
-  </div>
+    MiniBus.watch("buttonComponent.data-click", (value) => {
+      // Button component requests a change in its text based on its click state
+      MiniBus.requestStateChange("toggleButton", "toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+    });
+  </script>
+</div>
 
 </body>
 </html>
