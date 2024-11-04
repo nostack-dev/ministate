@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Unified MiniState</title>
+  <title>Configurable MiniBus Library</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- MiniState -->
+  <!-- MiniBus -->
   <script>
-    const MiniState = (() => {
+    const MiniBus = (() => {
       let state = {};
       const watchers = {};
       const wiring = {};
@@ -57,8 +57,8 @@
           console.log(`Partial State Update:`, JSON.stringify({ [stateKey]: newValue }, null, 2));
         },
 
-        wire(elementId, dataAttribute, domProperty) {
-          wiring[`${elementId}.${dataAttribute}`] = domProperty;
+        wire(elementId, dataAttribute, domProperty, options = {}) {
+          wiring[`${elementId}.${dataAttribute}`] = { domProperty, ...options };
           this.watch(`${elementId}.${dataAttribute}`, (newValue) => {
             this._applyStateChange(elementId, dataAttribute, newValue);
           });
@@ -89,13 +89,16 @@
           const element = document.getElementById(elementId);
           if (!element) return;
 
-          const domProperty = wiring[`${elementId}.${dataAttribute}`];
-          if (domProperty) {
-            if (domProperty === "classList.hidden") {
-              newValue === "hidden" ? element.classList.add("hidden") : element.classList.remove("hidden");
-            } else {
-              element[domProperty] = newValue;
-            }
+          const { domProperty, toggleClass } = wiring[`${elementId}.${dataAttribute}`];
+
+          if (domProperty === "classList" && toggleClass) {
+            // Add or remove the specified class based on the newValue
+            newValue === toggleClass
+              ? element.classList.add(toggleClass)
+              : element.classList.remove(toggleClass);
+          } else {
+            // Set any other DOM property directly
+            element[domProperty] = newValue;
           }
         },
 
@@ -130,8 +133,8 @@
         }
       };
 
-      // Initialize MiniState with predefined states
-      MiniState.init(predefinedStates);
+      // Initialize MiniBus with predefined states
+      MiniBus.init(predefinedStates);
     });
   </script>
 
@@ -147,10 +150,11 @@
     </nav>
 
     <script>
-      MiniState.wire("sidebarComponent", "data-class", "classList.hidden");
+      // Wire the sidebar's visibility class, specifying the toggle class explicitly
+      MiniBus.wire("sidebarComponent", "data-class", "classList", { toggleClass: "hidden" });
 
-      MiniState.watch("buttonComponent.data-click", (value) => {
-        MiniState.requestStateChange("sidebarComponent.data-class", value === "true" ? "" : "hidden");
+      MiniBus.watch("buttonComponent.data-click", (value) => {
+        MiniBus.requestStateChange("sidebarComponent.data-class", value === "true" ? "" : "hidden");
       });
     </script>
   </div>
@@ -159,11 +163,12 @@
     <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
 
     <script>
-      MiniState.wire("toggleButton", "data-text", "textContent");
-      MiniState.registerEvent("toggleButton", "click", "buttonComponent.data-click");
+      // Wire the button text content, without any class toggling
+      MiniBus.wire("toggleButton", "data-text", "textContent");
+      MiniBus.registerEvent("toggleButton", "click", "buttonComponent.data-click");
 
-      MiniState.watch("buttonComponent.data-click", (value) => {
-        MiniState.requestStateChange("toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+      MiniBus.watch("buttonComponent.data-click", (value) => {
+        MiniBus.requestStateChange("toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
       });
     </script>
   </div>
