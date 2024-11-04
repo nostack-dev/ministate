@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Configurable MiniBus Library</title>
+  <title>Configurable MiniState Library</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- MiniBus -->
+  <!-- MiniState -->
   <script>
-    const MiniBus = (() => {
+    const MiniState = (() => {
       let state = {};
       const watchers = {};
       const wiring = {};
@@ -133,8 +133,8 @@
         }
       };
 
-      // Initialize MiniBus with predefined states
-      MiniBus.init(predefinedStates);
+      // Initialize MiniState with predefined states
+      MiniState.init(predefinedStates);
     });
   </script>
 
@@ -151,10 +151,10 @@
 
     <script>
       // Wire the sidebar's visibility class, specifying the toggle class explicitly
-      MiniBus.wire("sidebarComponent", "data-class", "classList", { toggleClass: "hidden" });
+      MiniState.wire("sidebarComponent", "data-class", "classList", { toggleClass: "hidden" });
 
-      MiniBus.watch("buttonComponent.data-click", (value) => {
-        MiniBus.requestStateChange("sidebarComponent.data-class", value === "true" ? "" : "hidden");
+      MiniState.watch("buttonComponent.data-click", (value) => {
+        MiniState.requestStateChange("sidebarComponent.data-class", value === "true" ? "" : "hidden");
       });
     </script>
   </div>
@@ -164,11 +164,11 @@
 
     <script>
       // Wire the button text content, without any class toggling
-      MiniBus.wire("toggleButton", "data-text", "textContent");
-      MiniBus.registerEvent("toggleButton", "click", "buttonComponent.data-click");
+      MiniState.wire("toggleButton", "data-text", "textContent");
+      MiniState.registerEvent("toggleButton", "click", "buttonComponent.data-click");
 
-      MiniBus.watch("buttonComponent.data-click", (value) => {
-        MiniBus.requestStateChange("toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+      MiniState.watch("buttonComponent.data-click", (value) => {
+        MiniState.requestStateChange("toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
       });
     </script>
   </div>
