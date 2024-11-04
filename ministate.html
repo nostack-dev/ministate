@@ -2,37 +2,41 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MiniBus with Awaitable Wiring</title>
+  <title>MiniBus with Controlled Transitions</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <!-- MiniState -->
   <script>
-    // ministate.js
     const MiniState = (() => {
       let state = {};
       const watchers = {};
-      const predefinedStates = {};
+      const predefinedStates = {
+        "SIDEBAR_HIDDEN": {
+          "sidebarComponent.data-class": "hidden",
+          "toggleButton.data-text": "Show Sidebar",
+          "buttonComponent.data-click": "false"
+        },
+        "SIDEBAR_VISIBLE": {
+          "sidebarComponent.data-class": "",
+          "toggleButton.data-text": "Hide Sidebar",
+          "buttonComponent.data-click": "true"
+        }
+      };
 
       return {
-        addState(stateName, stateDefinition) {
-          predefinedStates[stateName] = stateDefinition;
-        },
+        init() {
+          const sidebarElement = document.getElementById('sidebarComponent');
+          const toggleButton = document.getElementById('toggleButton');
+          const buttonComponent = document.getElementById('buttonComponent');
 
-        init(initialStateKey = "SIDEBAR_HIDDEN") {
-          const initialState = predefinedStates[initialStateKey];
-          if (!initialState) {
-            console.error(`Initial state "${initialStateKey}" is not defined.`);
-            return;
-          }
-
-          Object.keys(initialState).forEach(elementId => {
-            const attributes = initialState[elementId];
-            Object.keys(attributes).forEach(attr => {
-              const stateKey = `${elementId}.${attr}`;
-              state[stateKey] = attributes[attr];
-            });
-          });
+          // Initialize state based on DOM
+          const isSidebarHidden = sidebarElement.classList.contains('hidden');
+          state = {
+            "sidebarComponent.data-class": isSidebarHidden ? "hidden" : "",
+            "toggleButton.data-text": toggleButton.textContent.trim(),
+            "buttonComponent.data-click": buttonComponent.getAttribute("data-click") || "false"
+          };
 
           console.log('Initial State:', JSON.stringify(state, null, 2));
         },
@@ -57,46 +61,29 @@
           if (watchers[stateKey]) {
             watchers[stateKey].forEach(callback => callback(newValue));
           }
+          console.log(`Partial State Update:`, JSON.stringify({ [stateKey]: newValue }, null, 2));
         },
 
-        switchState(stateName) {
-          const newState = predefinedStates[stateName];
-          if (!newState) {
-            console.error(`State "${stateName}" is not defined.`);
-            return;
-          }
-
-          Object.keys(newState).forEach(elementId => {
-            const attributes = newState[elementId];
-            Object.keys(attributes).forEach(attr => {
-              const stateKey = `${elementId}.${attr}`;
-              this.setState(stateKey, attributes[attr]);
-            });
-          });
-        }
+        predefinedStates: predefinedStates
       };
     })();
   </script>
-  
+
   <!-- MiniBus -->
   <script>
-    // minibus.js
     const MiniBus = (() => {
       const wiring = {};
       const permissions = {};
+      let transitionInProgress = false; // Flag to suppress re-triggering
 
       return {
-        init(initialStateKey = "SIDEBAR_HIDDEN") {
-          MiniState.init(initialStateKey);
+        init() {
+          MiniState.init();
         },
 
         wire(elementId, dataAttribute, domProperty) {
           wiring[`${elementId}.${dataAttribute}`] = domProperty;
-          const stateKey = `${elementId}.${dataAttribute}`;
-          const currentValue = MiniState.getState(stateKey);
-          this._applyStateChange(elementId, dataAttribute, currentValue);
-
-          MiniState.watch(stateKey, (newValue) => {
+          MiniState.watch(`${elementId}.${dataAttribute}`, (newValue) => {
             this._applyStateChange(elementId, dataAttribute, newValue);
           });
         },
@@ -109,10 +96,25 @@
         },
 
         requestStateChange(ownerId, stateKey, newValue) {
+          if (transitionInProgress) return; // Exit if a transition is already in progress
+
           if (permissions[stateKey] && permissions[stateKey].includes(ownerId)) {
-            MiniState.setState(stateKey, newValue);
-          } else {
-            console.error(`Permission denied: ${ownerId} cannot modify ${stateKey}`);
+            const targetState = newValue === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN";
+            const targetAttributes = MiniState.predefinedStates[targetState];
+
+            if (
+              targetAttributes &&
+              (targetAttributes[stateKey] === newValue || targetAttributes[stateKey] === "" || targetAttributes[stateKey] == null)
+            ) {
+              transitionInProgress = true; // Set flag to indicate transition in progress
+              console.log(`Transition to ${targetState} matched. Applying changes...`);
+              Object.keys(targetAttributes).forEach(attr => {
+                MiniState.setState(attr, targetAttributes[attr]);
+              });
+              transitionInProgress = false; // Reset flag after completing transition
+            } else {
+              console.warn(`Invalid state transition for ${stateKey} to ${newValue}`);
+            }
           }
         },
 
@@ -144,85 +146,45 @@
   </script>
 </head>
 <body class="flex">
-  
-  <!-- Initialization Script -->
+
   <script>
-    // Define and add predefined states
-    MiniState.addState("SIDEBAR_HIDDEN", {
-      sidebarComponent: {
-        "data-class": "hidden"
-      },
-      toggleButton: {
-        "data-text": "Show Sidebar"
-      }
-    });
+    document.addEventListener('DOMContentLoaded', () => {
+      // Initialize MiniBus
+      MiniBus.init();
 
-    MiniState.addState("SIDEBAR_VISIBLE", {
-      sidebarComponent: {
-        "data-class": ""
-      },
-      toggleButton: {
-        "data-text": "Hide Sidebar"
-      }
+      // Grant permissions for button interactions
+      MiniBus.grantPermission("toggleButton", "buttonComponent.data-click");
+      MiniBus.grantPermission("toggleButton", "toggleButton.data-text");
+      MiniBus.grantPermission("buttonComponent", "sidebarComponent.data-class");
     });
-
-    // Initialize MiniBus with the desired initial state
-    MiniBus.init("SIDEBAR_HIDDEN");
   </script>
 
-
-  
-
-<div id="sidebarComponent" data-state="closed" class="bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out z-10">
-    <!-- Sidebar Header -->
+  <div id="sidebarComponent" data-state="closed" class="bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transform transition-transform duration-300 ease-in-out z-10 hidden">
     <div class="h-16 flex items-center justify-between px-4">
-        <!-- Hamburger Icon (Always Visible) -->
-        <button class="toggleSidebarButton text-accent" aria-label="Toggle Sidebar">
-            ☰
-        </button>
-
-        <button onclick="" aria-label="New">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-accent">
-                <path d="M12 19c4.418 0 8-3.582 8-8s-3.582-8-8-8S4 6.582 4 11a7.93 7.93 0 0 0 1.582 4.635l-1.39 3.483a1 1 0 0 0 1.266 1.266l3.483-1.39A7.93 7.93 0 0 0 12 19zm0-10v4m0 0v-4m-2 2h4"/>
-            </svg>
-        </button>
+      <button class="toggleSidebarButton text-accent" aria-label="Toggle Sidebar">☰</button>
     </div>
 
-    <!-- Sidebar Navigation -->
     <nav class="flex-1 p-4">
-        <ul class="menu w-full">
-            <li>sidebar entry</li>
-        </ul>
+      <ul class="menu w-full">
+        <li>sidebar entry</li>
+      </ul>
     </nav>
 
-    <!-- Sidebar Footer -->
-    <div class="p-4 h-5px flex items-center justify-center">
-        <p class="text-sm"></p>
-    </div>
-
-
     <script>
-      // Sidebar Component Script
       MiniBus.wire("sidebarComponent", "data-class", "classList.hidden");
-      MiniBus.grantPermission("buttonComponent", "sidebarComponent.data-class");
 
       MiniState.watch("buttonComponent.data-click", (value) => {
         MiniBus.requestStateChange("buttonComponent", "sidebarComponent.data-class", value === "true" ? "" : "hidden");
       });
     </script>
-</div>
+  </div>
 
-  <!-- Button Component -->
   <div id="buttonComponent" data-click="false" class="flex justify-center items-center w-full h-full">
     <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
 
     <script>
-      // Button Component Script
       MiniBus.wire("toggleButton", "data-text", "textContent");
-      MiniBus.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
-
-      MiniBus.grantPermission("buttonComponent", "toggleButton.data-text");
-      MiniBus.grantPermission("buttonComponent", "buttonComponent.data-click");
+      MiniBus.registerEvent("toggleButton", "click", "buttonComponent.data-click");
 
       MiniState.watch("buttonComponent.data-click", (value) => {
         MiniBus.requestStateChange("buttonComponent", "toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
