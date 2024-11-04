@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MiniBus with Component Scoped Access</title>
+  <title>Unified MiniState</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
 
@@ -11,21 +11,15 @@
     const MiniState = (() => {
       let state = {};
       const watchers = {};
-      const predefinedStates = {
-        "SIDEBAR_HIDDEN": {
-          "sidebarComponent.data-class": "hidden",
-          "toggleButton.data-text": "Show Sidebar",
-          "buttonComponent.data-click": "false"
-        },
-        "SIDEBAR_VISIBLE": {
-          "sidebarComponent.data-class": "",
-          "toggleButton.data-text": "Hide Sidebar",
-          "buttonComponent.data-click": "true"
-        }
-      };
+      const wiring = {};
+      let transitionInProgress = false;
+      let predefinedStates = {};
 
       return {
-        init() {
+        init(externalStates) {
+          predefinedStates = externalStates;
+
+          // Initialize state based on DOM
           const sidebarElement = document.getElementById('sidebarComponent');
           const toggleButton = document.getElementById('toggleButton');
           const buttonComponent = document.getElementById('buttonComponent');
@@ -63,25 +57,9 @@
           console.log(`Partial State Update:`, JSON.stringify({ [stateKey]: newValue }, null, 2));
         },
 
-        predefinedStates: predefinedStates
-      };
-    })();
-  </script>
-
-  <!-- MiniBus -->
-  <script>
-    const MiniBus = (() => {
-      const wiring = {};
-      let transitionInProgress = false;
-
-      return {
-        init() {
-          MiniState.init();
-        },
-
         wire(elementId, dataAttribute, domProperty) {
           wiring[`${elementId}.${dataAttribute}`] = domProperty;
-          MiniState.watch(`${elementId}.${dataAttribute}`, (newValue) => {
+          this.watch(`${elementId}.${dataAttribute}`, (newValue) => {
             this._applyStateChange(elementId, dataAttribute, newValue);
           });
         },
@@ -90,7 +68,7 @@
           if (transitionInProgress) return;
 
           const targetState = newValue === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN";
-          const targetAttributes = MiniState.predefinedStates[targetState];
+          const targetAttributes = predefinedStates[targetState];
 
           if (
             targetAttributes &&
@@ -99,7 +77,7 @@
             transitionInProgress = true;
             console.log(`Transition to ${targetState} matched. Applying changes...`);
             Object.keys(targetAttributes).forEach(attr => {
-              MiniState.setState(attr, targetAttributes[attr]);
+              this.setState(attr, targetAttributes[attr]);
             });
             transitionInProgress = false;
           } else {
@@ -126,7 +104,7 @@
           if (!element) return;
 
           element.addEventListener(eventType, () => {
-            const currentValue = MiniState.getState(stateKeyToChange) === "true";
+            const currentValue = this.getState(stateKeyToChange) === "true";
             this.requestStateChange(stateKeyToChange, (!currentValue).toString());
           });
         }
@@ -138,7 +116,22 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      MiniBus.init();
+      // Define predefined states externally
+      const predefinedStates = {
+        "SIDEBAR_HIDDEN": {
+          "sidebarComponent.data-class": "hidden",
+          "toggleButton.data-text": "Show Sidebar",
+          "buttonComponent.data-click": "false"
+        },
+        "SIDEBAR_VISIBLE": {
+          "sidebarComponent.data-class": "",
+          "toggleButton.data-text": "Hide Sidebar",
+          "buttonComponent.data-click": "true"
+        }
+      };
+
+      // Initialize MiniState with predefined states
+      MiniState.init(predefinedStates);
     });
   </script>
 
@@ -154,10 +147,10 @@
     </nav>
 
     <script>
-      MiniBus.wire("sidebarComponent", "data-class", "classList.hidden");
+      MiniState.wire("sidebarComponent", "data-class", "classList.hidden");
 
       MiniState.watch("buttonComponent.data-click", (value) => {
-        MiniBus.requestStateChange("sidebarComponent.data-class", value === "true" ? "" : "hidden");
+        MiniState.requestStateChange("sidebarComponent.data-class", value === "true" ? "" : "hidden");
       });
     </script>
   </div>
@@ -166,11 +159,11 @@
     <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
 
     <script>
-      MiniBus.wire("toggleButton", "data-text", "textContent");
-      MiniBus.registerEvent("toggleButton", "click", "buttonComponent.data-click");
+      MiniState.wire("toggleButton", "data-text", "textContent");
+      MiniState.registerEvent("toggleButton", "click", "buttonComponent.data-click");
 
       MiniState.watch("buttonComponent.data-click", (value) => {
-        MiniBus.requestStateChange("toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+        MiniState.requestStateChange("toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
       });
     </script>
   </div>
