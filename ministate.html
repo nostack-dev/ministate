@@ -2,101 +2,101 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>MiniBus with Self-Contained State Management</title>
+  <title>MiniBus with Async Sequential State Management</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     const MiniBus = (() => {
-      let state = {};
-      const wiring = {};
-      const watchers = {};
-      const permissions = {};
+      const state = {}, wiring = {}, watchers = {};
+      let currentState = "";
 
       return {
-        init() {
-          document.querySelectorAll('[id]').forEach(element => {
-            [...element.attributes]
-              .filter(attr => attr.name.startsWith('data-'))
-              .forEach(attr => {
-                const stateKey = `${element.id}.${attr.name}`;
-                state[stateKey] = attr.value;
-              });
+        async init() {
+          document.querySelectorAll('[id]').forEach(el => {
+            [...el.attributes].forEach(attr => {
+              if (attr.name.startsWith('data-')) state[`${el.id}.${attr.name}`] = attr.value;
+            });
           });
           console.log('Initial State:', JSON.stringify(state, null, 2));
         },
 
-        wire(elementId, dataAttribute, domProperty) {
-          wiring[`${elementId}.${dataAttribute}`] = domProperty;
-        },
-
+        wire(id, dataAttr, prop) { wiring[`${id}.${dataAttr}`] = prop; },
+        
         watch(stateKey, callback) {
           if (!watchers[stateKey]) watchers[stateKey] = [];
           watchers[stateKey].push(callback);
         },
 
-        grantPermission(ownerId, stateKey) {
-          const [targetElementId] = stateKey.split('.');
-          const ownerElement = document.getElementById(ownerId);
-          const targetElement = document.getElementById(targetElementId);
-
-          if (targetElement && (ownerElement === targetElement || this._isChildOf(targetElement, ownerElement))) {
-            if (!permissions[stateKey]) permissions[stateKey] = [];
-            permissions[stateKey].push(ownerId);
-            console.log(`Permission granted: ${ownerId} can modify ${stateKey}`);
-          } else {
-            console.error(`Permission denied: ${ownerId} cannot grant permission for ${stateKey}`);
-          }
-        },
-
-        _isChildOf(child, parent) {
-          let node = child;
-          while (node) {
-            if (node === parent) return true;
-            node = node.parentNode;
-          }
-          return false;
-        },
-
-        requestStateChange(ownerId, stateKey, newValue) {
-          console.log(`Requesting state change: ${ownerId} -> ${stateKey}: ${newValue}`);
-          const [elementId, attribute] = stateKey.split('.');
-
-          if (ownerId === elementId || (permissions[stateKey] && permissions[stateKey].includes(ownerId))) {
-            if (state[stateKey] !== newValue) {
-              state[stateKey] = newValue;
-              this._applyStateChange(elementId, attribute, newValue);
-              if (watchers[stateKey]) {
-                watchers[stateKey].forEach(callback => callback(newValue));
+        async requestStateChange(id, stateKey, newValue) {
+          console.log(`State change: ${id} -> ${stateKey}: ${newValue}`);
+          if (state[stateKey] !== newValue) {
+            state[stateKey] = newValue;
+            await this._applyStateChange(stateKey, newValue);
+            if (watchers[stateKey]) {
+              for (const cb of watchers[stateKey]) {
+                await cb(newValue); // Await each watcher callback sequentially
               }
-              console.log("Updated State:", JSON.stringify(state, null, 2));
             }
-          } else {
-            console.error(`Permission denied: ${ownerId} cannot modify ${stateKey}`);
+            await this.delayedCheckTransitions(); // Run delayed check for transitions
           }
         },
 
-        _applyStateChange(elementId, dataAttribute, newValue) {
-          const element = document.getElementById(elementId);
-          if (!element) return;
-
-          const domProperty = wiring[`${elementId}.${dataAttribute}`];
-          if (domProperty) {
-            if (domProperty === "classList.hidden") {
-              newValue === "hidden" ? element.classList.add("hidden") : element.classList.remove("hidden");
-            } else {
-              element[domProperty] = typeof element[domProperty] === "boolean" ? newValue === "true" : newValue;
-            }
+        async _applyStateChange(stateKey, newValue) {
+          const [id, attr] = stateKey.split('.');
+          const el = document.getElementById(id), prop = wiring[stateKey];
+          if (!el) return;
+          if (prop === "classList.hidden") {
+            newValue === "hidden" ? el.classList.add("hidden") : el.classList.remove("hidden");
           } else {
-            element.setAttribute(dataAttribute, newValue);
+            el.setAttribute(attr, newValue);
           }
         },
 
-        registerEvent(componentId, eventType, stateKeyToChange) {
-          const element = document.getElementById(componentId);
-          element.addEventListener(eventType, () => {
-            const currentValue = state[stateKeyToChange] === "true";
-            this.requestStateChange(componentId, stateKeyToChange, (!currentValue).toString());
+        registerEvent(id, eventType, stateKey) {
+          document.getElementById(id).addEventListener(eventType, async () => {
+            const current = state[stateKey] === "true";
+            await this.requestStateChange(id, stateKey, (!current).toString());
           });
+        },
+
+        // Debounced check to handle transitions only after all state changes complete
+        delayedCheckTransitions: (() => {
+          let timeout;
+          return async function () {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => this.checkTransitions(), 50);
+          };
+        })(),
+
+        async checkTransitions() {
+          for (const [stateName, def] of Object.entries(STATES)) {
+            const allMatch = Object.entries(def).every(([key, value]) => {
+              if (key === "sidebarComponent.data-class") {
+                // Custom check for Tailwind "hidden" class in classList
+                const isHidden = document.getElementById("sidebarComponent").classList.contains("hidden");
+                const expectedHidden = value === "hidden";
+                if (isHidden !== expectedHidden) {
+                  console.log(`Mismatch for ${stateName}: expected sidebarComponent to be "${value}", but visibility is ${isHidden ? "hidden" : "visible"}`);
+                  return false;
+                }
+                return true;
+              }
+              const matches = state[key] === value;
+              if (!matches) {
+                console.log(`Mismatch for ${stateName}: expected ${key} to be "${value}", but found "${state[key]}"`);
+              }
+              return matches;
+            });
+
+            if (allMatch) {
+              if (currentState !== stateName) {
+                currentState = stateName;
+                console.log(`Transition to State: ${currentState}`, JSON.stringify(state, null, 2));
+              }
+              return; // Exit after finding a matching state
+            }
+          }
+          console.log("No predefined state matched.");
         }
       };
     })();
@@ -114,10 +114,8 @@
       }
     };
 
-    let currentState = "SIDEBAR_HIDDEN";
-
-    document.addEventListener('DOMContentLoaded', () => {
-      MiniBus.init();
+    document.addEventListener('DOMContentLoaded', async () => {
+      await MiniBus.init();
     });
   </script>
 </head>
@@ -128,27 +126,24 @@
   <p>Sidebar Content</p>
   <script>
     MiniBus.wire("sidebarComponent", "data-class", "classList.hidden");
-    MiniBus.grantPermission("sidebarComponent", "sidebarComponent.data-class");
-
-    MiniBus.watch("buttonComponent.data-click", (value) => {
-      // Sidebar component requests its own state change based on the button click
-      MiniBus.requestStateChange("sidebarComponent", "sidebarComponent.data-class", value === "true" ? "" : "hidden");
+    MiniBus.watch("buttonComponent.data-click", async (value) => {
+      await MiniBus.requestStateChange("sidebarComponent", "sidebarComponent.data-class", value === "true" ? "" : "hidden");
     });
   </script>
 </div>
 
 <!-- Button Component -->
 <div id="buttonComponent" data-click="false">
-  <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
+  <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar" data-click="false">Show Sidebar</button>
   <script>
     MiniBus.wire("toggleButton", "data-text", "textContent");
+
+    // Register click event for the buttonComponent
     MiniBus.registerEvent("buttonComponent", "click", "buttonComponent.data-click");
 
-    MiniBus.grantPermission("buttonComponent", "toggleButton.data-text");
-
-    MiniBus.watch("buttonComponent.data-click", (value) => {
-      // Button component requests a change in its text based on its click state
-      MiniBus.requestStateChange("toggleButton", "toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+    MiniBus.watch("buttonComponent.data-click", async (value) => {
+      await MiniBus.requestStateChange("toggleButton", "toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+      await MiniBus.requestStateChange("toggleButton", "toggleButton.data-click", value); // Set toggleButton's data-click
     });
   </script>
 </div>
