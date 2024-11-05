@@ -2,208 +2,235 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Configurable MiniState Library</title>
+  <title>MiniState Declarative Approach</title>
+
+  <!-- Include DaisyUI and Tailwind CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@2.51.5/dist/full.css">
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- MiniState -->
+  <!-- MiniState Library -->
   <script>
     const MiniState = (() => {
-      let state = {};
+      const state = {};
       const watchers = {};
-      const wiring = {};
-      let transitionInProgress = false;
-      let predefinedStates = {};
+      const predefinedStates = {};
+
+      const allowedWatchProperties = [
+        "textContent",
+        "innerHTML",
+        "value",
+        "click",
+        "input",
+        "change",
+        "submit",
+        "className",
+        "classList",
+        "selected",
+        "disabled",
+        "fetch"
+      ];
+
+      const elements = {};
+      let _predefinedStateScheduled = false;
+
+      const getElement = (componentId) => {
+        if (!elements[componentId]) {
+          elements[componentId] = document.querySelector(`#${componentId}`);
+        }
+        return elements[componentId];
+      };
 
       return {
         init(externalStates) {
-          predefinedStates = externalStates;
-
-          // Initialize state based on DOM
-          const sidebarElement = document.getElementById('sidebarComponent');
-          const toggleButton = document.getElementById('toggleButton');
-          const buttonComponent = document.getElementById('buttonComponent');
-
-          const isSidebarHidden = sidebarElement.classList.contains('hidden');
-          state = {
-            "sidebarComponent.data-class": isSidebarHidden ? "hidden" : "",
-            "toggleButton.data-text": toggleButton.textContent.trim(),
-            "buttonComponent.data-click": buttonComponent.getAttribute("data-click") || "false"
-          };
-
-          console.log('Initial State:', JSON.stringify(state, null, 2));
+          Object.assign(predefinedStates, externalStates);
         },
 
-        getState(stateKey) {
-          return state[stateKey];
-        },
+        watch(componentId, property, callback) {
+          if (!allowedWatchProperties.includes(property)) {
+            console.error(`Property '${property}' is not allowed.`);
+            return;
+          }
+          const stateKey = `${componentId}.${property}`;
+          if (!watchers[stateKey]) watchers[stateKey] = [];
+          watchers[stateKey].push(callback);
 
-        setState(stateKey, newValue) {
-          if (state[stateKey] !== newValue) {
-            state[stateKey] = newValue;
-            this._notify(stateKey, newValue);
+          // Set up event listeners for user interactions
+          if (["click", "input", "change", "submit"].includes(property)) {
+            const element = getElement(componentId);
+            if (element) {
+              element.addEventListener(property, () => {
+                // Call the callback directly
+                callback("triggered");
+              });
+            }
           }
         },
 
-        watch(stateKey, callback) {
-          if (!watchers[stateKey]) watchers[stateKey] = [];
-          watchers[stateKey].push(callback);
-        },
-
-        _notify(stateKey, newValue) {
+        _notify(componentId, property, newValue) {
+          const stateKey = `${componentId}.${property}`;
+          // Notify watchers
           if (watchers[stateKey]) {
             watchers[stateKey].forEach(callback => callback(newValue));
           }
-          console.log(`Partial State Update:`, JSON.stringify({ [stateKey]: newValue }, null, 2));
+
+          // Update the DOM element if applicable
+          const element = getElement(componentId);
+
+          // Properties to skip when updating DOM elements
+          const skipDomUpdateProperties = ["click", "input", "change", "submit", "fetch"];
+
+          if (element && !skipDomUpdateProperties.includes(property)) {
+            if (property === "classList") {
+              // Handle classList updates
+              element.classList.value = newValue;
+            } else {
+              element[property] = newValue;
+            }
+          }
         },
 
-        /**
-         * Enhanced wire method to support both synchronous and asynchronous bindings.
-         * @param {string} elementId - The ID of the DOM element to wire.
-         * @param {string} dataAttribute - The data attribute to bind.
-         * @param {string} domProperty - The DOM property to update.
-         * @param {object} options - Additional options.
-         * @param {function} asyncFunction - Optional async function to fetch data.
-         */
-        wire(elementId, dataAttribute, domProperty, options = {}, asyncFunction = null) {
-          wiring[`${elementId}.${dataAttribute}`] = { domProperty, ...options };
-          this.watch(`${elementId}.${dataAttribute}`, (newValue) => {
-            this._applyStateChange(elementId, dataAttribute, newValue);
-          });
+        requestLocalStateChange(componentId, property, newValue) {
+          if (!allowedWatchProperties.includes(property)) {
+            console.error(`Property '${property}' is not allowed.`);
+            return;
+          }
+          const stateKey = `${componentId}.${property}`;
+          let currentValue = state[stateKey];
 
-          // If an asyncFunction is provided, execute it and set the state
-          if (typeof asyncFunction === 'function') {
-            (async () => {
-              try {
-                const result = await asyncFunction();
-                this.setState(`${elementId}.${dataAttribute}`, result);
-              } catch (error) {
-                console.error(`Failed to bind async state for ${elementId}.${dataAttribute}:`, error);
+          // Handle toggle functionality
+          if (newValue === "toggle") {
+            if (currentValue === "true") {
+              newValue = "false";
+            } else if (currentValue === "false" || currentValue === undefined) {
+              newValue = "true";
+            } else {
+              // For non-boolean values, toggle between empty string and the provided value
+              newValue = currentValue === "" ? "hidden" : "";
+            }
+          }
+
+          newValue = String(newValue);
+
+          if (currentValue !== newValue) {
+            state[stateKey] = newValue;
+            this._notify(componentId, property, newValue);
+
+            // Schedule predefined state check
+            if (!_predefinedStateScheduled) {
+              _predefinedStateScheduled = true;
+              Promise.resolve().then(() => {
+                this._checkPredefinedStates();
+                _predefinedStateScheduled = false;
+              });
+            }
+          }
+        },
+
+        _checkPredefinedStates() {
+          for (const [stateName, stateConditions] of Object.entries(predefinedStates)) {
+            let match = true;
+            for (const [key, value] of Object.entries(stateConditions)) {
+              if (state[key] !== value) {
+                match = false;
+                break;
               }
-            })();
+            }
+            if (match) {
+              // Transitioned to a predefined state
+              console.log(`Transitioned to state '${stateName}':`, stateConditions);
+              break; // Apply only the first matching state
+            }
           }
-        },
-
-        requestStateChange(stateKey, newValue) {
-          if (transitionInProgress) return;
-
-          const targetState = newValue === "true" ? "SIDEBAR_VISIBLE" : "SIDEBAR_HIDDEN";
-          const targetAttributes = predefinedStates[targetState];
-
-          if (
-            targetAttributes &&
-            (targetAttributes[stateKey] === newValue || targetAttributes[stateKey] === "" || targetAttributes[stateKey] == null)
-          ) {
-            transitionInProgress = true;
-            console.log(`Transition to ${targetState} matched. Applying changes...`);
-            Object.keys(targetAttributes).forEach(attr => {
-              this.setState(attr, targetAttributes[attr]);
-            });
-            transitionInProgress = false;
-          } else {
-            console.warn(`Invalid state transition for ${stateKey} to ${newValue}`);
-          }
-        },
-
-        _applyStateChange(elementId, dataAttribute, newValue) {
-          const element = document.getElementById(elementId);
-          if (!element) return;
-
-          const { domProperty, toggleClass } = wiring[`${elementId}.${dataAttribute}`];
-
-          if (domProperty === "classList" && toggleClass) {
-            // Add or remove the specified class based on the newValue
-            newValue === toggleClass
-              ? element.classList.add(toggleClass)
-              : element.classList.remove(toggleClass);
-          } else {
-            // Set any other DOM property directly
-            element[domProperty] = newValue;
-          }
-        },
-
-        registerEvent(componentId, eventType, stateKeyToChange) {
-          const element = document.getElementById(componentId);
-          if (!element) return;
-
-          element.addEventListener(eventType, () => {
-            const currentValue = this.getState(stateKeyToChange) === "true";
-            this.requestStateChange(stateKeyToChange, (!currentValue).toString());
-          });
         }
       };
     })();
+
+    // Initialize MiniState with predefined states
+    MiniState.init({
+      "SIDEBAR_HIDDEN": {
+        "toggleButton.value": "false"
+      },
+      "SIDEBAR_VISIBLE": {
+        "toggleButton.value": "true"
+      }
+    });
   </script>
-  <style>
-    /* Existing styles remain unchanged */
-    *, ::before, ::after { /* ... */ }
-    /* ... Rest of the CSS ... */
-  </style>
 </head>
 <body class="flex">
 
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      // Define predefined states externally
-      const predefinedStates = {
-        "SIDEBAR_HIDDEN": {
-          "sidebarComponent.data-class": "hidden",
-          "toggleButton.data-text": "Show Sidebar",
-          "buttonComponent.data-click": "false"
-        },
-        "SIDEBAR_VISIBLE": {
-          "sidebarComponent.data-class": "",
-          "toggleButton.data-text": "Hide Sidebar",
-          "buttonComponent.data-click": "true"
-        }
-      };
-
-      // Initialize MiniState with predefined states
-      MiniState.init(predefinedStates);
-    });
-  </script>
-
-  <div id="sidebarComponent" data-state="closed" class="bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transform transition-transform duration-300 ease-in-out z-10 hidden">
+  <!-- Sidebar Component -->
+  <div id="sidebarComponent" class="bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transition-transform duration-300 ease-in-out z-10 hidden">
+    <!-- Sidebar content -->
     <div class="h-16 flex items-center justify-between px-4">
       <button class="toggleSidebarButton text-accent" aria-label="Toggle Sidebar">☰</button>
     </div>
 
     <nav class="flex-1 p-4">
       <ul class="menu w-full">
-        <li>sidebar entry</li>
+        <li>Sidebar Entry</li>
       </ul>
     </nav>
+  </div>
+
+  <!-- Button Component -->
+  <div id="buttonComponent" class="flex flex-col justify-center items-center w-full h-full">
+    <button id="toggleButton" class="btn btn-primary">Show Sidebar</button>
 
     <script>
-      MiniState.wire("sidebarComponent", "data-class", "classList", { toggleClass: "hidden" });
+      // Button Component Script
 
-      MiniState.watch("buttonComponent.data-click", (value) => {
-        MiniState.requestStateChange("sidebarComponent.data-class", value === "true" ? "" : "hidden");
+      // Initialize the 'value' state of toggleButton to 'false'
+      MiniState.requestLocalStateChange("toggleButton", "value", "false");
+
+      // Watch for click events on the toggleButton
+      MiniState.watch("toggleButton", "click", () => {
+        // Request to toggle the 'value' of toggleButton
+        MiniState.requestLocalStateChange("toggleButton", "value", "toggle");
+      });
+
+      // Watch for changes in its own 'value' to update the button text
+      MiniState.watch("toggleButton", "value", (newValue) => {
+        const buttonText = newValue === "true" ? "Hide Sidebar" : "Show Sidebar";
+        MiniState.requestLocalStateChange("toggleButton", "textContent", buttonText);
       });
     </script>
   </div>
 
-  <div id="buttonComponent" data-click="false" class="flex justify-center items-center w-full h-full">
-    <button id="toggleButton" class="btn btn-primary" data-text="Show Sidebar">Show Sidebar</button>
+  <!-- Sidebar Component Script -->
+  <script>
+    // Watch for changes in 'toggleButton.value'
+    MiniState.watch("toggleButton", "value", (newValue) => {
+      // Based on the new value, update the sidebar's classList
+      if (newValue === "true") {
+        // Remove 'hidden' class to show the sidebar
+        MiniState.requestLocalStateChange("sidebarComponent", "classList", "bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transition-transform duration-300 ease-in-out z-10");
+      } else {
+        // Add 'hidden' class to hide the sidebar
+        MiniState.requestLocalStateChange("sidebarComponent", "classList", "bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transition-transform duration-300 ease-in-out z-10 hidden");
+      }
+    });
+  </script>
 
+  <!-- Example Component for Async Operation -->
+  <div id="exampleComponent">
+    <!-- Content will be loaded asynchronously -->
     <script>
-      MiniState.wire("toggleButton", "data-text", "textContent");
-      MiniState.registerEvent("toggleButton", "click", "buttonComponent.data-click");
+      // Example Component Script
 
-      MiniState.watch("buttonComponent.data-click", (value) => {
-        MiniState.requestStateChange("toggleButton.data-text", value === "true" ? "Hide Sidebar" : "Show Sidebar");
+      // Watch for 'fetch' property to trigger async operation
+      MiniState.watch("exampleComponent", "fetch", async () => {
+        MiniState.requestLocalStateChange("exampleComponent", "textContent", "Loading...");
+        try {
+          const response = await fetch('https://jsonplaceholder.typicode.com/todos/1');
+          const data = await response.json();
+          MiniState.requestLocalStateChange("exampleComponent", "textContent", data.title);
+        } catch (error) {
+          MiniState.requestLocalStateChange("exampleComponent", "textContent", "Error loading data");
+        }
       });
-    </script>
-  </div>
 
-  <div id="exampleComponent" data-async="">
-    <script>
-      // Use the enhanced wire method with an async function
-      MiniState.wire("exampleComponent", "data-async", "textContent", {}, async () => {
-        const response = await fetch('https://jsonplaceholder.typicode.com/todos/1');
-        const data = await response.json();
-        return data.title;
-      });
+      // Trigger the fetch operation
+      MiniState.requestLocalStateChange("exampleComponent", "fetch", "start");
     </script>
   </div>
 
