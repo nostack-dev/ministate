@@ -32,7 +32,6 @@
       ];
 
       const elements = {};              // Cached DOM elements
-      let _predefinedStateScheduled = false;
       let _currentStateName = null;     // Variable to track the current state
 
       // Helper function to get DOM elements by component ID
@@ -47,31 +46,27 @@
         // Initialize MiniState with predefined FSM states
         init(externalStates) {
           Object.assign(predefinedStates, externalStates);
-
-          // Do not perform an initial state check to avoid invalid state combination warnings
         },
 
         // Watch for changes in specific component properties
-        watch(componentId, property, ...args) {
+        watch(componentId, property, callback) {
           if (!allowedWatchProperties.includes(property)) {
             console.error(`Property '${property}' is not allowed.`);
             return;
           }
 
-          const callback = args[args.length - 1];
-          const params = args.slice(0, -1); // Additional parameters
-
           const stateKey = `${componentId}.${property}`;
           if (!watchers[stateKey]) watchers[stateKey] = [];
-          watchers[stateKey].push({ callback, params });
+          watchers[stateKey].push({ callback, params: [] });
 
           // Set up event listeners for user interactions
           if (["click", "input", "change", "submit"].includes(property)) {
             const element = getElement(componentId);
             if (element) {
               element.addEventListener(property, () => {
-                // Call the callback directly with a trigger event
-                callback("triggered", ...params);
+                // Trigger the callback with the current value
+                const newValue = state[componentId] && state[componentId][property];
+                callback(newValue, ...[]);
               });
             }
           }
@@ -80,7 +75,7 @@
         // Internal function to notify watchers and update the DOM
         _notify(componentId, property, newValue) {
           const stateKey = `${componentId}.${property}`;
-          
+
           // Notify watchers
           if (watchers[stateKey]) {
             watchers[stateKey].forEach(({ callback, params }) => {
@@ -97,9 +92,9 @@
           if (element && !skipDomUpdateProperties.includes(property)) {
             if (property === "classList") {
               // Handle 'hidden' class addition/removal based on newValue
-              if (newValue.includes("hidden")) {
+              if (newValue === "hidden") {
                 element.classList.add("hidden");
-              } else {
+              } else if (newValue === "") {
                 element.classList.remove("hidden");
               }
             } else {
@@ -115,7 +110,6 @@
             return;
           }
 
-          const stateKey = `${componentId}.${property}`;
           let currentValue = state[componentId] ? state[componentId][property] : undefined;
 
           // Handle toggle functionality
@@ -125,7 +119,7 @@
             } else if (currentValue === "false" || currentValue === undefined) {
               newValue = "true";
             } else {
-              // For non-boolean values, toggle between empty string and the provided value
+              // For non-boolean values, toggle between empty string and "hidden"
               newValue = currentValue === "" ? "hidden" : "";
             }
           }
@@ -139,14 +133,8 @@
             state[componentId][property] = newValue;
             this._notify(componentId, property, newValue);
 
-            // Schedule predefined state check
-            if (!_predefinedStateScheduled) {
-              _predefinedStateScheduled = true;
-              Promise.resolve().then(() => {
-                this._checkPredefinedStates();
-                _predefinedStateScheduled = false;
-              });
-            }
+            // Check for FSM state transitions
+            this._checkPredefinedStates();
           }
         },
 
@@ -156,7 +144,12 @@
             let match = true;
             for (const [key, value] of Object.entries(stateConditions)) {
               const [compId, prop] = key.split('.');
-              if (!state[compId] || state[compId][prop] !== value) {
+              if (!state[compId] || (value !== "*" && state[compId][prop] !== value)) {
+                // Check if the value is a wildcard
+                if (value === "*") {
+                  // Wildcard: Any value is acceptable, skip checking
+                  continue;
+                }
                 match = false;
                 break;
               }
@@ -167,8 +160,9 @@
                 _currentStateName = stateName;
                 // Transitioned to a new predefined state
                 console.log(`Transitioned to state '${stateName}':`, stateConditions);
-              } {
-                 console.log("already in state" + `Transitioned to state '${stateName}':`, stateConditions);
+              } else {
+                // Already in this state
+                console.log(`Already in state '${stateName}'.`);
               }
               break; // Apply only the first matching state
             }
@@ -183,6 +177,10 @@
           const matched = Object.values(predefinedStates).some(predefState =>
             Object.entries(predefState).every(([key, val]) => {
               const [compId, prop] = key.split('.');
+              if (val === "*") {
+                // Wildcard: Skip checking this property
+                return true;
+              }
               return state[compId] && state[compId][prop] === val;
             })
           );
@@ -194,32 +192,36 @@
       };
     })();
 
-    // Initialize MiniState with predefined FSM states, including all relevant properties
+    // Initialize MiniState with predefined FSM states, prioritizing DATA_LOAD_* before SIDEBAR_*
     MiniState.init({
+      // Data Load States (Defined First)
+      "DATA_LOAD_INITIATED": {
+        "toggleButton.value": "*",            // Wildcard: Any value is acceptable
+        "loadDataButton.value": "true",
+        "exampleText.textContent": "Loading..."
+      },
+      "DATA_LOAD_COMPLETED": {
+        "toggleButton.value": "*",            // Wildcard
+        "loadDataButton.value": "false",
+        "exampleText.textContent": "Data Loaded Successfully"
+      },
+      "DATA_LOAD_ERROR": {
+        "toggleButton.value": "*",            // Wildcard
+        "loadDataButton.value": "false",
+        "exampleText.textContent": "Error loading data"
+      },
+      // Sidebar States
       "SIDEBAR_HIDDEN": {
         "toggleButton.value": "false",
         "loadDataButton.value": "false",
-        "sidebarComponent.classList": "hidden",
         "toggleButton.textContent": "Show Sidebar"
       },
       "SIDEBAR_VISIBLE": {
         "toggleButton.value": "true",
         "loadDataButton.value": "false",
-        "sidebarComponent.classList": "",
         "toggleButton.textContent": "Hide Sidebar"
-      },
-      "DATA_LOAD_INITIATED": {
-        "loadDataButton.value": "true",
-        "exampleText.textContent": "Loading..."
-      },
-      "DATA_LOAD_COMPLETED": {
-        "loadDataButton.value": "false",
-        "exampleText.textContent": "Data Loaded Successfully"
-      },
-      "DATA_LOAD_ERROR": {
-        "loadDataButton.value": "false",
-        "exampleText.textContent": "Error loading data"
       }
+      // Additional FSM states can be defined here
     });
   </script>
 </head>
@@ -243,13 +245,13 @@
 
       // Watch for changes in 'toggleButton.value'
       MiniState.watch("toggleButton", "value", (newValue) => {
-        // Based on the new value, update the sidebar's classList
+        const sidebar = document.getElementById("sidebarComponent");
         if (newValue === "true") {
           // Remove 'hidden' class to show the sidebar
-          MiniState.requestLocalStateChange("sidebarComponent", "classList", "");
+          sidebar.classList.remove("hidden");
         } else {
           // Add 'hidden' class to hide the sidebar
-          MiniState.requestLocalStateChange("sidebarComponent", "classList", "hidden");
+          sidebar.classList.add("hidden");
         }
       });
     </script>
@@ -301,10 +303,10 @@
       });
 
       // Watch for changes in 'loadDataButton.value' to perform the fetch operation
-      MiniState.watch("loadDataButton", "value", async (newValue) => {
+      MiniState.watch("loadDataButton", "value", (newValue) => {
         if (newValue === "true") {
           // Update the state to 'DATA_LOAD_INITIATED'
-          MiniState.requestLocalStateChange("loadDataButton", "value", "true");
+          MiniState.requestLocalStateChange("exampleText", "textContent", "Loading...");
         }
       });
 
@@ -313,6 +315,7 @@
         if (newValue === "true") {
           try {
             const response = await fetch(allowedUrl);
+            if (!response.ok) throw new Error("Network response was not ok");
             const data = await response.json();
             // Set the state to 'DATA_LOAD_COMPLETED' with fetched data
             MiniState.requestLocalStateChange("exampleText", "textContent", data.title);
@@ -327,5 +330,15 @@
     </script>
   </div>
 
+  <script>
+    // Initialization Script to Set the Initial Global State
+    document.addEventListener("DOMContentLoaded", () => {
+      // Initialize all relevant properties to match the 'SIDEBAR_HIDDEN' state
+      MiniState.requestLocalStateChange("toggleButton", "value", "false");
+      MiniState.requestLocalStateChange("toggleButton", "textContent", "Show Sidebar");
+      MiniState.requestLocalStateChange("loadDataButton", "value", "false");
+      MiniState.requestLocalStateChange("exampleText", "textContent", "Click the button to load data.");
+    });
+  </script>
 </body>
 </html>
