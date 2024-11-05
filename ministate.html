@@ -11,9 +11,9 @@
   <!-- MiniState Library -->
   <script>
     const MiniState = (() => {
-      const state = {};
-      const watchers = {};
-      const predefinedStates = {};
+      const state = {};                 // Centralized global state object (nested)
+      const watchers = {};              // Watchers for state properties
+      const predefinedStates = {};      // Predefined FSM states
 
       const allowedWatchProperties = [
         "textContent",
@@ -31,10 +31,11 @@
         "url"
       ];
 
-      const elements = {};
+      const elements = {};              // Cached DOM elements
       let _predefinedStateScheduled = false;
-      let _currentStateName = null; // Variable to track the current state
+      let _currentStateName = null;     // Variable to track the current state
 
+      // Helper function to get DOM elements by component ID
       const getElement = (componentId) => {
         if (!elements[componentId]) {
           elements[componentId] = document.querySelector(`#${componentId}`);
@@ -43,15 +44,20 @@
       };
 
       return {
+        // Initialize MiniState with predefined FSM states
         init(externalStates) {
           Object.assign(predefinedStates, externalStates);
+
+          // Do not perform an initial state check to avoid invalid state combination warnings
         },
 
+        // Watch for changes in specific component properties
         watch(componentId, property, ...args) {
           if (!allowedWatchProperties.includes(property)) {
             console.error(`Property '${property}' is not allowed.`);
             return;
           }
+
           const callback = args[args.length - 1];
           const params = args.slice(0, -1); // Additional parameters
 
@@ -64,15 +70,17 @@
             const element = getElement(componentId);
             if (element) {
               element.addEventListener(property, () => {
-                // Call the callback directly
+                // Call the callback directly with a trigger event
                 callback("triggered", ...params);
               });
             }
           }
         },
 
+        // Internal function to notify watchers and update the DOM
         _notify(componentId, property, newValue) {
           const stateKey = `${componentId}.${property}`;
+          
           // Notify watchers
           if (watchers[stateKey]) {
             watchers[stateKey].forEach(({ callback, params }) => {
@@ -80,7 +88,7 @@
             });
           }
 
-          // Update the DOM element if applicable
+          // Update the DOM if applicable
           const element = getElement(componentId);
 
           // Properties to skip when updating DOM elements
@@ -88,21 +96,27 @@
 
           if (element && !skipDomUpdateProperties.includes(property)) {
             if (property === "classList") {
-              // Handle classList updates
-              element.classList.value = newValue;
+              // Handle 'hidden' class addition/removal based on newValue
+              if (newValue.includes("hidden")) {
+                element.classList.add("hidden");
+              } else {
+                element.classList.remove("hidden");
+              }
             } else {
               element[property] = newValue;
             }
           }
         },
 
+        // Function to request a state change by enqueuing it for processing
         requestLocalStateChange(componentId, property, newValue) {
           if (!allowedWatchProperties.includes(property)) {
             console.error(`Property '${property}' is not allowed.`);
             return;
           }
+
           const stateKey = `${componentId}.${property}`;
-          let currentValue = state[stateKey];
+          let currentValue = state[componentId] ? state[componentId][property] : undefined;
 
           // Handle toggle functionality
           if (newValue === "toggle") {
@@ -119,7 +133,10 @@
           newValue = String(newValue);
 
           if (currentValue !== newValue) {
-            state[stateKey] = newValue;
+            if (!state[componentId]) {
+              state[componentId] = {};
+            }
+            state[componentId][property] = newValue;
             this._notify(componentId, property, newValue);
 
             // Schedule predefined state check
@@ -133,11 +150,13 @@
           }
         },
 
+        // Internal function to check and transition to predefined FSM states
         _checkPredefinedStates() {
           for (const [stateName, stateConditions] of Object.entries(predefinedStates)) {
             let match = true;
             for (const [key, value] of Object.entries(stateConditions)) {
-              if (state[key] !== value) {
+              const [compId, prop] = key.split('.');
+              if (!state[compId] || state[compId][prop] !== value) {
                 match = false;
                 break;
               }
@@ -148,28 +167,58 @@
                 _currentStateName = stateName;
                 // Transitioned to a new predefined state
                 console.log(`Transitioned to state '${stateName}':`, stateConditions);
-              }else {
-               //console.log(`same state: Transitioned to state '${stateName}':`, stateConditions + "_currentStateName == stateName" + " transition not required.");
+              } {
+                 console.log("already in state" + `Transitioned to state '${stateName}':`, stateConditions);
               }
               break; // Apply only the first matching state
             }
+          }
+
+          // Validate the state after checking predefined states
+          this._validateState();
+        },
+
+        // Internal function to validate the current state against predefined states
+        _validateState() {
+          const matched = Object.values(predefinedStates).some(predefState =>
+            Object.entries(predefState).every(([key, val]) => {
+              const [compId, prop] = key.split('.');
+              return state[compId] && state[compId][prop] === val;
+            })
+          );
+
+          if (!matched) {
+            console.warn("Invalid state combination after processing state changes:", state);
           }
         }
       };
     })();
 
-    // Initialize MiniState with predefined states
+    // Initialize MiniState with predefined FSM states, including all relevant properties
     MiniState.init({
       "SIDEBAR_HIDDEN": {
         "toggleButton.value": "false",
-        "loadDataButton.value": "false"
+        "loadDataButton.value": "false",
+        "sidebarComponent.classList": "hidden",
+        "toggleButton.textContent": "Show Sidebar"
       },
       "SIDEBAR_VISIBLE": {
         "toggleButton.value": "true",
-        "loadDataButton.value": "false"
+        "loadDataButton.value": "false",
+        "sidebarComponent.classList": "",
+        "toggleButton.textContent": "Hide Sidebar"
       },
       "DATA_LOAD_INITIATED": {
-        "loadDataButton.value": "true"
+        "loadDataButton.value": "true",
+        "exampleText.textContent": "Loading..."
+      },
+      "DATA_LOAD_COMPLETED": {
+        "loadDataButton.value": "false",
+        "exampleText.textContent": "Data Loaded Successfully"
+      },
+      "DATA_LOAD_ERROR": {
+        "loadDataButton.value": "false",
+        "exampleText.textContent": "Error loading data"
       }
     });
   </script>
@@ -180,7 +229,7 @@
   <div id="sidebarComponent" class="bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transition-transform duration-300 ease-in-out z-10 hidden">
     <!-- Sidebar content -->
     <div class="h-16 flex items-center justify-between px-4">
-      <button class="toggleSidebarButton text-accent" aria-label="Toggle Sidebar">☰</button>
+      <button class="toggleSidebarButton text-accent text-lg" aria-label="Toggle Sidebar">☰</button>
     </div>
 
     <nav class="flex-1 p-4">
@@ -197,10 +246,10 @@
         // Based on the new value, update the sidebar's classList
         if (newValue === "true") {
           // Remove 'hidden' class to show the sidebar
-          MiniState.requestLocalStateChange("sidebarComponent", "classList", "bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transition-transform duration-300 ease-in-out z-10");
+          MiniState.requestLocalStateChange("sidebarComponent", "classList", "");
         } else {
           // Add 'hidden' class to hide the sidebar
-          MiniState.requestLocalStateChange("sidebarComponent", "classList", "bg-neutral w-64 h-full fixed top-0 left-0 flex flex-col justify-between transition-transform duration-300 ease-in-out z-10 hidden");
+          MiniState.requestLocalStateChange("sidebarComponent", "classList", "hidden");
         }
       });
     </script>
@@ -254,18 +303,23 @@
       // Watch for changes in 'loadDataButton.value' to perform the fetch operation
       MiniState.watch("loadDataButton", "value", async (newValue) => {
         if (newValue === "true") {
-          // Update the text to indicate loading
-          MiniState.requestLocalStateChange("exampleText", "textContent", "Loading...");
+          // Update the state to 'DATA_LOAD_INITIATED'
+          MiniState.requestLocalStateChange("loadDataButton", "value", "true");
+        }
+      });
 
+      // Watch for changes in 'loadDataButton.value' to handle fetch operations
+      MiniState.watch("loadDataButton", "value", async (newValue) => {
+        if (newValue === "true") {
           try {
             const response = await fetch(allowedUrl);
             const data = await response.json();
-            // Update the text with the fetched data
+            // Set the state to 'DATA_LOAD_COMPLETED' with fetched data
             MiniState.requestLocalStateChange("exampleText", "textContent", data.title);
+            MiniState.requestLocalStateChange("loadDataButton", "value", "false");
           } catch (error) {
+            // Set the state to 'DATA_LOAD_ERROR'
             MiniState.requestLocalStateChange("exampleText", "textContent", "Error loading data");
-          } finally {
-            // Reset the 'value' state to 'false' after operation
             MiniState.requestLocalStateChange("loadDataButton", "value", "false");
           }
         }
