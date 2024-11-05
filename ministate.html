@@ -148,6 +148,8 @@
                 _currentStateName = stateName;
                 // Transitioned to a new predefined state
                 console.log(`Transitioned to state '${stateName}':`, stateConditions);
+              }else {
+               //console.log(`same state: Transitioned to state '${stateName}':`, stateConditions + "_currentStateName == stateName" + " transition not required.");
               }
               break; // Apply only the first matching state
             }
@@ -159,10 +161,15 @@
     // Initialize MiniState with predefined states
     MiniState.init({
       "SIDEBAR_HIDDEN": {
-        "toggleButton.value": "false"
+        "toggleButton.value": "false",
+        "loadDataButton.value": "false"
       },
       "SIDEBAR_VISIBLE": {
-        "toggleButton.value": "true"
+        "toggleButton.value": "true",
+        "loadDataButton.value": "false"
+      },
+      "DATA_LOAD_INITIATED": {
+        "loadDataButton.value": "true"
       }
     });
   </script>
@@ -235,33 +242,33 @@
       // Allowed URL for fetch operation (for security)
       const allowedUrl = 'https://jsonplaceholder.typicode.com/todos/1';
 
-      // Initialize the 'fetch' state of exampleComponent to 'false'
-      MiniState.requestLocalStateChange("exampleComponent", "fetch", "false");
+      // Initialize the 'value' state of loadDataButton to 'false'
+      MiniState.requestLocalStateChange("loadDataButton", "value", "false");
 
-      // Watch for changes in 'fetch' to perform the fetch operation
-      MiniState.watch("exampleComponent", "fetch", allowedUrl, async (newValue, url) => {
+      // Watch for click events on the loadDataButton
+      MiniState.watch("loadDataButton", "click", () => {
+        // Set the 'value' state to 'true' to initiate the predefined state transition
+        MiniState.requestLocalStateChange("loadDataButton", "value", "true");
+      });
+
+      // Watch for changes in 'loadDataButton.value' to perform the fetch operation
+      MiniState.watch("loadDataButton", "value", async (newValue) => {
         if (newValue === "true") {
           // Update the text to indicate loading
           MiniState.requestLocalStateChange("exampleText", "textContent", "Loading...");
 
           try {
-            const response = await fetch(url);
+            const response = await fetch(allowedUrl);
             const data = await response.json();
             // Update the text with the fetched data
             MiniState.requestLocalStateChange("exampleText", "textContent", data.title);
           } catch (error) {
             MiniState.requestLocalStateChange("exampleText", "textContent", "Error loading data");
           } finally {
-            // Reset the fetch state to 'false' after operation
-            MiniState.requestLocalStateChange("exampleComponent", "fetch", "false");
+            // Reset the 'value' state to 'false' after operation
+            MiniState.requestLocalStateChange("loadDataButton", "value", "false");
           }
         }
-      });
-
-      // Watch for click events on the loadDataButton
-      MiniState.watch("loadDataButton", "click", () => {
-        // Set the 'fetch' state to 'true' to initiate fetch
-        MiniState.requestLocalStateChange("exampleComponent", "fetch", "true");
       });
     </script>
   </div>
