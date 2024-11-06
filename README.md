@@ -92,13 +92,7 @@ MiniState.watch("dataComponent", "data-fetch", (status, data) => {
 
     // Watch for fetch status changes
     MiniState.watch('dataComponent', 'data-fetch', (status, data) => {
-      const display = document.getElementById('dataDisplay');
-      if (status === "loading") {
-        display.textContent = "Loading...";
-      } else if (status === "success") {
-        display.textContent = data;
-      } else if (status === "error") {
-        display.textContent = "Error loading data.";
+             MiniState.requestLocalStateChange(...);
       }
     });
   </script>
