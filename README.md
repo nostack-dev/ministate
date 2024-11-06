@@ -38,12 +38,12 @@ MiniState.watch("toggleButton", "data-textContent", (value) => {
 });
 ```
 
-### Automatic Change Detection with Class Toggling Support
-**Purpose:** MiniState supports visibility toggling using `data-classList`, aligned with frameworks like Tailwind CSS. Visibility is managed by adding or removing a `hidden` class.
+### Automatic Change Detection with classlist add and remove
+**Purpose:** MiniState supports using `data-classList`, aligned with frameworks like Tailwind CSS. Visibility is managed by adding or removing a `hidden` class.
 
 **Example:**
 ```javascript
-MiniState.requestLocalStateChange("myComponent", "data-classList", "hidden" ? "" : "hidden");
+MiniState.requestLocalStateChange("myComponent", "data-classList", "hidden");
 ```
 
 ### Declarative API for Asynchronous Operations (`fetch`)
@@ -99,7 +99,7 @@ const allowedWatchProperties = [
 - `predefinedTransitions` should be part of the API, allowing developers to define what state can transition to what other state.
 
 ## Transactional State Changes with Full State Match Requirement
-- State transitions should apply only after a full predefined state match, avoiding partial state updates unless the entire transition is valid. This is done by remembering all data-* attributes that where changed in their values to their current active state. For this, we use pending state object that locks changed individual state until the transition is matched, then the lock is released and pending state equals current state again. Other than that, there are no separate transition conditions.
+- State transitions should apply only after a full predefined state match, avoiding partial state updates unless the entire transition is valid. This is done by remembering all data-* attributes that were changed in their values to their current active state. For this, we use pending state object that locks changed individual state until the transition is matched, then the lock is released and pending state equals current state again. Other than that, there are no separate transition conditions.
 
 ## Error Handling for Naming Conventions
 - Implement error handling to verify correct naming conventions for component IDs, child element IDs, and properties, avoiding misconfiguration. Every Child HTML element inside a div that has a valid component id is considered a component if it contains also a script tag inside the hierarchy.
@@ -108,13 +108,13 @@ const allowedWatchProperties = [
 - Each component must have an embedded `<script>` tag inside the root `<div>` element (e.g., `<div id="myComponent"><script>...</script></div>`).
 
 ## No Direct DOM Access within Components
-- Components must not directly invoke document functions, such as `document.getElementById`. Instead, they should rely solely on MiniState two API methods `watch` and `requestLocalStateChange` to manage their state and interactions. `watch` uses a callback with a provided value and optional data like (value, data)=> ... so the watched value gets injected into the component for small conditional checks.
+- Components must not directly invoke document functions, such as `document.getElementById`. Instead, they should rely solely on MiniState the two API methods `watch` and `requestLocalStateChange` to manage their state and interactions. `watch` uses a callback with a provided value and optional data like (value, data)=> ... so the watched value gets injected into the component for small conditional checks.
 
 ## No DOM changes without Transition match
 - All DOM changes made by the MiniState library should be committed after successful Transition only (transaction). We never update the DOM without matching a predefined transition. We use a dedicated updateDOM method that executes only after a predefined state is fully matched by pendingState object (data-* attributes of all changes compared to current state attributes).
 
 ### MiniState API
-- This approach adheres to a decoupled, component-based design where components request changes exclusively to their local state using MiniState.requestLocalStateChange(...), rather than modifying the state directly. MiniState evaluates these requests and determines if the state should be updated. Components can monitor their own and other components' states using MiniState.watch(...(value)=>{...}), which helps maintain an organized system with clear boundaries for state management. Direct imperative calls to document, window, or other browser DOM APIs are prohibited within components.
+- This approach adheres to a decoupled, component-based design were components request changes exclusively to their local state using MiniState.requestLocalStateChange(...), rather than modifying the state directly. MiniState evaluates these requests and determines if the state should be updated. Components can monitor their own and other components' states using MiniState.watch(...(value)=>{...}), which helps maintain an organized system with clear boundaries for state management. Direct imperative calls to document, window, or other browser DOM APIs are prohibited within components.
 
 Example:
 ```html
