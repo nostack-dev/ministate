@@ -127,3 +127,28 @@ const allowedWatchProperties = [
 
 ### MiniState API
 - This approach adheres to a decoupled, component-based design where components request changes exclusively to their local state using MiniState.requestLocalStateChange(...), rather than modifying the state directly. MiniState evaluates these requests and determines if the state should be updated. Components can monitor their own and other components' states using MiniState.watch(...(value)=>{...}), which helps maintain an organized system with clear boundaries for state management. Direct imperative calls to document, window, or other browser DOM APIs are prohibited within components.
+
+Example:
+```html
+<!-- buttonComponent -->
+<div id="buttonComponent">
+  <button id="myButton" value="false">Toggle Button State</button>
+  <script>
+    // Toggle myButton's value between "true" and "false" on click
+    MiniState.watch('myButton', 'value', (value) => {
+      MiniState.requestLocalStateChange('myButton', 'value', value === "false" ? "true" : "false");
+    });
+  </script>
+</div>
+
+<!-- sidebarComponent -->
+<div id="sidebarComponent" class="hidden">
+  <div>Sidebar Content</div>
+  <script>
+    // Show or hide sidebar based on myButton's value
+    MiniState.watch('myButton', 'value', (value) => {
+      MiniState.requestLocalStateChange('sidebarComponent', 'classList', value === "true" ? "hidden" : "");
+    });
+  </script>
+</div>
+```
