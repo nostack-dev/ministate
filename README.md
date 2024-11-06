@@ -1,4 +1,4 @@
-# 📜 MiniState – Streamlined Approach
+# 📜 MiniState – Easy State Machine
 
 ## Purpose
 The MiniState library is designed to provide a minimal, declarative, and component-centric approach to managing state across a UI, ensuring that state changes are predictable, isolated within components, and driven by predefined watch-properties as the single source of truth.
