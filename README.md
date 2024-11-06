@@ -123,7 +123,7 @@ const allowedWatchProperties = [
 - Each component must have an embedded `<script>` tag inside the root `<div>` element (e.g., `<div id="myComponent"><script>...</script></div>`).
 
 ## No Direct DOM Access within Components
-- Components must not directly invoke document functions, such as `document.getElementById`. Instead, they should rely solely on MiniState API methods like `watch`, `wire`, and `requestLocalStateChange` to manage their state and interactions.
+- Components must not directly invoke document functions, such as `document.getElementById`. Instead, they should rely solely on MiniState two API methods `watch` and `requestLocalStateChange` to manage their state and interactions.
 
 ### MiniState API
 - This approach adheres to a decoupled, component-based design where components request changes exclusively to their local state using MiniState.requestLocalStateChange(...), rather than modifying the state directly. MiniState evaluates these requests and determines if the state should be updated. Components can monitor their own and other components' states using MiniState.watch(...(value)=>{...}), which helps maintain an organized system with clear boundaries for state management. Direct imperative calls to document, window, or other browser DOM APIs are prohibited within components.
