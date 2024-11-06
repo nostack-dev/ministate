@@ -194,9 +194,8 @@ MiniState.watch("myComponent", "data-classList", (currentClasses) => {
   <script>
     // Show or hide sidebar based on myButton's value
     MiniState.watch('myButton', 'data-value', (value) => {
-    MiniState.watch('sidebarComponent', 'data-classList', (values) => {
-      const newClasses = values.includes("hidden") ? values.replace("hidden", "").trim() : `${values} hidden`.trim();
-      MiniState.requestLocalStateChange("myComponent", "data-classList", newClasses);
+      const newClassVal = value === "true" ? "hidden" : "";
+      MiniState.requestLocalStateChange("myComponent", "data-classList", newClassVal);
     }
     });
   </script>
